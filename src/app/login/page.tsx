@@ -22,10 +22,12 @@ export default function LoginPage() {
       const data = await auth.login(form);
       setTokens(data.access_token, data.refresh_token);
       try {
-        const me = await auth.me();
-        setAuth(me, me.org || {}, data.access_token);
-      } catch {}
-      router.push("/dashboard");
+  const me = await auth.me();
+  setAuth(me, me.org || {}, data.access_token);
+} catch {
+  setTokens(data.access_token, data.refresh_token);
+}
+router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
