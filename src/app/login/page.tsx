@@ -1,5 +1,3 @@
-
-
 "use client";
 import { useState } from "react";
 import Link from "next/link";
@@ -21,13 +19,10 @@ export default function LoginPage() {
     try {
       const data = await auth.login(form);
       setTokens(data.access_token, data.refresh_token);
-      try {
-  const me = await auth.me();
-  setAuth(me, me.org || {}, data.access_token);
-} catch {
-  setTokens(data.access_token, data.refresh_token);
-}
-router.push("/dashboard");
+      auth.me().then(me => {
+        setAuth(me, me.org || {}, data.access_token);
+      }).catch(() => {});
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -83,4 +78,4 @@ router.push("/dashboard");
       </div>
     </div>
   );
-}
+            }
