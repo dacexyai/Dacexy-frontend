@@ -6,23 +6,28 @@
 
 @layer base {
   :root {
-    --cream-50:  #F9F7F2;
+    --cream-50: #F9F7F2;
     --cream-100: #F2EFE8;
     --cream-200: #E8E3D8;
     --cream-300: #D5CFC2;
   }
-  html { -webkit-font-smoothing: antialiased; }
-  body { font-family: 'Plus Jakarta Sans', sans-serif; body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #ffffff; }
-  .font-serif { font-family: 'Fraunces', Georgia, serif; }
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #ffffff;
+  }
+  .font-serif {
+    font-family: 'Fraunces', Georgia, serif;
+  }
 }
 
 @layer utilities {
-  .bg-cream-50  { background-color: var(--cream-50); }
-  .bg-cream-100 { background-color: var(--cream-100); }
-  .bg-cream-200 { background-color: var(--cream-200); }
-  .bg-cream-300 { background-color: var(--cream-300); }
-  .border-cream-300 { border-color: var(--cream-300); }
-  .text-cream-300 { color: var(--cream-300); }
+  .bg-cream-50 { background-color: #F9F7F2; }
+  .bg-cream-100 { background-color: #F2EFE8; }
+  .bg-cream-200 { background-color: #E8E3D8; }
+  .bg-cream-300 { background-color: #D5CFC2; }
   .shadow-soft { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03); }
   .shadow-glow { box-shadow: 0 0 0 1px rgba(109,40,217,0.15), 0 4px 12px rgba(109,40,217,0.18); }
   .shadow-card { box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04); }
@@ -30,12 +35,12 @@
 
 @layer components {
   .input-base {
-    @apply w-full bg-cream-100 border border-black/8 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all;
+    @apply w-full bg-gray-100 border border-black/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all;
   }
   .btn-primary {
-    @apply flex items-center gap-2 bg-violet-700 text-white font-bold text-sm px-5 py-3 rounded-xl hover:bg-violet-800 disabled:opacity-50 transition-all shadow-glow cursor-pointer;
+    @apply flex items-center gap-2 bg-violet-700 text-white font-bold text-sm px-5 py-3 rounded-xl hover:bg-violet-800 disabled:opacity-50 transition-all cursor-pointer;
   }
   .btn-secondary {
-    @apply flex items-center gap-2 bg-cream-100 text-[#5C5C5C] font-bold text-sm px-5 py-3 rounded-xl hover:bg-cream-200 transition-all cursor-pointer;
+    @apply flex items-center gap-2 bg-gray-100 text-gray-600 font-bold text-sm px-5 py-3 rounded-xl hover:bg-gray-200 transition-all cursor-pointer;
   }
-    }
+}
