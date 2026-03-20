@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Sidebar from '@/components/layout/Sidebar'
 import { Menu } from 'lucide-react'
 
-const AUTH_ROUTES = ['/login', '/register', '/reset-password', '/verify-email', '/onboarding', '/']
+const AUTH_ROUTES = ['/login', '/register', '/reset-password', '/verify-email', '/onboarding', '/chat', '/']
 
 export default function AppShellClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
