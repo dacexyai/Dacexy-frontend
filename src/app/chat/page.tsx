@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Sparkles, Menu, X } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot } from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
@@ -48,6 +48,7 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [agentMode, setAgentMode] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
@@ -100,7 +101,22 @@ export default function ChatPage() {
     setMessages([...allMessages, aiMsg])
 
     try {
-      const res = await fetch(`${API_URL}/ai/chat`, {
+      const endpoint = agentMode ? `${API_URL}/agent/run` : `${API_URL}/ai/chat`
+
+      if (agentMode) {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ task: msg })
+        })
+        const data = await res.json()
+        const result = data.result || 'Agent task completed.'
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: result } : m))
+        setStreaming(false)
+        return
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -136,7 +152,7 @@ export default function ChatPage() {
     } catch {
       setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m))
     } finally { setStreaming(false) }
-  }, [input, streaming, activeId, messages, token])
+  }, [input, streaming, activeId, messages, token, agentMode])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -151,12 +167,10 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Chat sidebar — hidden by default, shown on toggle */}
       <div className={cn(
         'fixed left-0 top-0 h-full z-40 flex flex-col w-64 bg-white border-r border-black/6 transition-transform duration-300',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -196,9 +210,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <div className="flex items-center gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -210,9 +222,11 @@ export default function ChatPage() {
             </div>
             <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
           </div>
+          {agentMode && (
+            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Agent Mode</span>
+          )}
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-[#F9F7F2]">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -257,25 +271,39 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input */}
         <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
-            <div className="bg-[#F2EFE8] border border-black/8 rounded-2xl focus-within:border-violet-400 focus-within:bg-white transition-all shadow-soft">
+            <div className={cn(
+              'border rounded-2xl transition-all shadow-soft',
+              agentMode
+                ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400'
+                : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
+            )}>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask anything… (Shift+Enter for new line)"
+                placeholder={agentMode ? "Describe a task for the AI agent to execute autonomously..." : "Ask anything… (Shift+Enter for new line)"}
                 rows={1}
                 className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
               />
               <div className="flex items-center justify-between px-3 pb-3 pt-1">
-                <button onClick={() => setSidebarOpen(true)}
-                  className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors">
-                  <MessageSquare size={13} />
-                  <span>Chats</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setSidebarOpen(true)}
+                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50">
+                    <MessageSquare size={13} />
+                    <span>Chats</span>
+                  </button>
+                  <button onClick={() => setAgentMode(!agentMode)}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg transition-colors',
+                      agentMode ? 'text-violet-700 bg-violet-100 font-semibold' : 'text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50'
+                    )}>
+                    <Bot size={13} />
+                    <span>Agent</span>
+                  </button>
+                </div>
                 <button onClick={send} disabled={!input.trim() || streaming}
                   className={cn(
                     'w-8 h-8 rounded-xl flex items-center justify-center transition-all',
@@ -295,4 +323,4 @@ export default function ChatPage() {
       </div>
     </div>
   )
-    }
+            }
