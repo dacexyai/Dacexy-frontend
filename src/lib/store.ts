@@ -1,5 +1,3 @@
-
-
 import { create } from "zustand";
 
 interface User {
@@ -25,6 +23,7 @@ interface AuthStore {
   setAuth: (user: User, org: Org, token: string) => void;
   setTokens: (access: string, refresh: string) => void;
   logout: () => void;
+  init: () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
@@ -32,18 +31,32 @@ export const useAuthStore = create<AuthStore>((set) => ({
   org: null,
   token: null,
   isAuthenticated: false,
+  init: () => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        set({ token, isAuthenticated: true });
+      }
+    }
+  },
   setAuth: (user, org, token) => {
-    localStorage.setItem("access_token", token);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("access_token", token);
+    }
     set({ user, org, token, isAuthenticated: true });
   },
   setTokens: (access, refresh) => {
-    localStorage.setItem("access_token", access);
-    localStorage.setItem("refresh_token", refresh);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("access_token", access);
+      localStorage.setItem("refresh_token", refresh);
+    }
     set({ token: access, isAuthenticated: true });
   },
   logout: () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+    }
     set({ user: null, org: null, token: null, isAuthenticated: false });
   },
 }));
