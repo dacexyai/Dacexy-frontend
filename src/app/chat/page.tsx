@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Trash2, Sparkles } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X } from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
@@ -47,9 +47,9 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
   useEffect(() => {
@@ -71,21 +71,21 @@ export default function ChatPage() {
 
   async function loadSession(id: string) {
     setActiveId(id)
+    setSidebarOpen(false)
     try {
       const r = await fetch(`${API_URL}/ai/sessions/${id}/messages`, { headers: { Authorization: `Bearer ${token}` } })
       const data = await r.json()
       const msgs: Msg[] = (data.messages || []).map((m: any, i: number) => ({
-        id: String(i),
-        role: m.role,
-        content: m.content
+        id: String(i), role: m.role, content: m.content
       }))
       setMessages(msgs)
     } catch {}
   }
 
-  async function newSession() {
+  function newSession() {
     setActiveId(null)
     setMessages([])
+    setSidebarOpen(false)
   }
 
   const send = useCallback(async () => {
@@ -123,30 +123,19 @@ export default function ChatPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.type === 'session_id' && !activeId) {
-                setActiveId(data.session_id)
-              }
+              if (data.type === 'session_id' && !activeId) setActiveId(data.session_id)
               if (data.type === 'chunk') {
                 full += data.content
-                setMessages(prev => prev.map(m =>
-                  m.id === aiMsg.id ? { ...m, content: full } : m
-                ))
+                setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m))
               }
-              if (data.type === 'done') {
-                setStreaming(false)
-                loadSessions()
-              }
+              if (data.type === 'done') { setStreaming(false); loadSessions() }
             } catch {}
           }
         }
       }
-    } catch (err) {
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m
-      ))
-    } finally {
-      setStreaming(false)
-    }
+    } catch {
+      setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m))
+    } finally { setStreaming(false) }
   }, [input, streaming, activeId, messages, token])
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -161,14 +150,25 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <div className="w-60 bg-white border-r border-black/6 flex flex-col shrink-0">
-        <div className="p-3 border-b border-black/6">
+    <div className="flex h-screen bg-white overflow-hidden">
+      {/* Sidebar overlay for mobile */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Chat sidebar — hidden by default, shown on toggle */}
+      <div className={cn(
+        'fixed left-0 top-0 h-full z-40 flex flex-col w-64 bg-white border-r border-black/6 transition-transform duration-300',
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      )}>
+        <div className="flex items-center justify-between p-3 border-b border-black/6">
           <button onClick={newSession}
-            className="w-full flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 font-semibold text-sm px-3.5 py-2.5 rounded-xl transition-all">
+            className="flex-1 flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 font-semibold text-sm px-3.5 py-2.5 rounded-xl transition-all">
             <Plus size={15} />
             New chat
+          </button>
+          <button onClick={() => setSidebarOpen(false)} className="ml-2 p-2 hover:bg-gray-100 rounded-lg">
+            <X size={16} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
@@ -183,29 +183,36 @@ export default function ChatPage() {
             sessions.map(s => (
               <div key={s.id} onClick={() => loadSession(s.id)}
                 className={cn(
-                  'group flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all mx-1 rounded-xl',
+                  'flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all mx-1 rounded-xl',
                   activeId === s.id ? 'bg-violet-50' : 'hover:bg-gray-50'
                 )}>
                 <MessageSquare size={13} className={activeId === s.id ? 'text-violet-600' : 'text-[#B0B0B0]'} />
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-xs font-medium truncate', activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
-                    {s.title || 'New conversation'}
-                  </p>
-                </div>
+                <p className={cn('text-xs font-medium truncate flex-1', activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
+                  {s.title || 'New conversation'}
+                </p>
               </div>
             ))
           )}
-        </div>
-        <div className="p-3 border-t border-black/6">
-          <button onClick={() => { useAuthStore.getState().logout(); window.location.href = '/login' }}
-            className="w-full text-xs text-[#9E9E9E] hover:text-[#5C5C5C] py-2 transition-colors">
-            Sign out
-          </button>
         </div>
       </div>
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <Menu size={18} className="text-[#5C5C5C]" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-violet-700 flex items-center justify-center">
+              <Sparkles size={11} className="text-white" />
+            </div>
+            <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
+          </div>
+        </div>
+
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-[#F9F7F2]">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -251,7 +258,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-black/6 bg-white/80 backdrop-blur-sm p-4">
+        <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
             <div className="bg-[#F2EFE8] border border-black/8 rounded-2xl focus-within:border-violet-400 focus-within:bg-white transition-all shadow-soft">
               <textarea
@@ -263,7 +270,12 @@ export default function ChatPage() {
                 rows={1}
                 className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
               />
-              <div className="flex items-center justify-end px-3 pb-3 pt-1">
+              <div className="flex items-center justify-between px-3 pb-3 pt-1">
+                <button onClick={() => setSidebarOpen(true)}
+                  className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors">
+                  <MessageSquare size={13} />
+                  <span>Chats</span>
+                </button>
                 <button onClick={send} disabled={!input.trim() || streaming}
                   className={cn(
                     'w-8 h-8 rounded-xl flex items-center justify-center transition-all',
@@ -283,4 +295,4 @@ export default function ChatPage() {
       </div>
     </div>
   )
-                  }
+    }
