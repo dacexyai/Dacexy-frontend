@@ -7,7 +7,7 @@ import { useAuthStore } from "@/lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setTokens, setAuth } = useAuthStore();
+  const setTokens = useAuthStore((s) => s.setTokens);
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,13 +19,9 @@ export default function LoginPage() {
     try {
       const data = await auth.login(form);
       setTokens(data.access_token, data.refresh_token);
-      auth.me().then(me => {
-        setAuth(me, me.org || {}, data.access_token);
-      }).catch(() => {});
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message || "Login failed");
-    } finally {
       setLoading(false);
     }
   }
@@ -78,4 +74,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-            }
+}
