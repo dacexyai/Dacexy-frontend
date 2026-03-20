@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       const data = await auth.login(form);
       setTokens(data.access_token, data.refresh_token);
-      window.location.href = "/dashboard";
+      window.location.replace("/dashboard")
     } catch (err: any) {
       setError(err.message || "Login failed");
       setLoading(false);
