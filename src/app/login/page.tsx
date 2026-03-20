@@ -31,7 +31,7 @@ export default function LoginPage() {
       try { userData = await auth.me() } catch {}
       try { orgData = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://dacexy-backend-v7ku.onrender.com/api/v1'}/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
       login(userData, orgData, data.access_token, data.refresh_token)
-      window.location.replace('/dashboard')
+      window.location.replace('/chat')
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password')
     } finally {
