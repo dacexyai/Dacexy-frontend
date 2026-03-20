@@ -8,7 +8,7 @@ async function request(path: string, options: RequestInit = {}) {
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
   try {
     const res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller.signal });
     clearTimeout(timeout);
