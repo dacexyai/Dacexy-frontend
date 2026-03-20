@@ -15,7 +15,7 @@ export function clearTokens() {
   localStorage.removeItem('dacexy_auth')
 }
 
-async function request(path: string, opts: RequestInit & { body?: any } = {}) {
+async function request(path: string, opts: { method?: string; body?: any; headers?: any; signal?: AbortSignal } = {}) {
   const token = getAccessToken()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
