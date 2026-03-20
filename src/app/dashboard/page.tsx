@@ -1,101 +1,170 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import {
+  MessageSquare, Bot, Zap, ArrowRight,
+  CreditCard, Users, Sparkles, Clock,
+  ChevronRight, Activity, RefreshCw, AlertCircle
+} from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
+import { planLabel, planColor, formatRelative, cn } from '@/lib/utils'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
 
+function StatCard({ icon: Icon, label, value, sub, color = 'violet', href }: any) {
+  const colorMap: any = {
+    violet:  'bg-violet-50 text-violet-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    amber:   'bg-amber-50 text-amber-700',
+    blue:    'bg-blue-50 text-blue-700',
+  }
+  const card = (
+    <div className="bg-white border border-black/6 rounded-2xl p-5 shadow-soft hover:shadow-md transition-all group">
+      <div className="flex items-center justify-between mb-4">
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', colorMap[color])}>
+          <Icon size={16} />
+        </div>
+        {href && <ChevronRight size={14} className="text-gray-300 group-hover:text-violet-400 transition-colors" />}
+      </div>
+      <p className="font-serif text-2xl font-bold text-[#0F0F0F] mb-0.5">{value}</p>
+      <p className="text-xs font-semibold text-[#5C5C5C]">{label}</p>
+      {sub && <p className="text-[10px] text-[#B0B0B0] mt-0.5">{sub}</p>}
+    </div>
+  )
+  return href ? <Link href={href}>{card}</Link> : card
+}
+
+function QuickAction({ icon: Icon, title, desc, href }: any) {
+  return (
+    <Link href={href}
+      className="flex items-center gap-4 bg-white border border-black/6 rounded-2xl p-4 shadow-soft hover:border-violet-200 hover:shadow-md transition-all group">
+      <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-violet-100 transition-colors">
+        <Icon size={18} className="text-violet-700" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-[#0F0F0F]">{title}</p>
+        <p className="text-xs text-[#9E9E9E] truncate">{desc}</p>
+      </div>
+      <ArrowRight size={14} className="text-gray-300 group-hover:text-violet-500 transition-colors shrink-0" />
+    </Link>
+  )
+}
+
 export default function DashboardPage() {
-  const router = useRouter()
-  const { user, org, logout } = useAuthStore()
+  const { user, org } = useAuthStore()
   const [usage, setUsage] = useState<any>(null)
+  const [sessions, setSessions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
   useEffect(() => {
-    if (!token) { router.replace('/login'); return }
-    fetch(`${API_URL}/billing/usage`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setUsage).catch(() => {})
+    if (!token) { window.location.href = '/login'; return }
+    const headers = { Authorization: `Bearer ${token}` }
+    Promise.allSettled([
+      fetch(`${API_URL}/billing/usage`, { headers }).then(r => r.json()).then(setUsage),
+      fetch(`${API_URL}/ai/sessions`, { headers }).then(r => r.json()).then(d => setSessions((d.sessions || []).slice(0, 5))),
+    ]).finally(() => setLoading(false))
   }, [])
 
-  const features = [
-    { title: 'AI Chat', desc: 'Chat with DeepSeek AI', href: '/chat', icon: '💬', color: 'bg-violet-50 border-violet-200 hover:bg-violet-100' },
-    { title: 'AI Agent', desc: 'Automate complex tasks', href: '/agent', icon: '🤖', color: 'bg-amber-50 border-amber-200 hover:bg-amber-100' },
-    { title: 'Billing', desc: 'Manage your plan', href: '/billing', icon: '💳', color: 'bg-green-50 border-green-200 hover:bg-green-100' },
-    { title: 'Team', desc: 'Manage members', href: '/team', icon: '👥', color: 'bg-blue-50 border-blue-200 hover:bg-blue-100' },
-    { title: 'Settings', desc: 'Account settings', href: '/settings', icon: '⚙️', color: 'bg-gray-50 border-gray-200 hover:bg-gray-100' },
-    { title: 'Audit Logs', desc: 'View activity', href: '/audit-logs', icon: '📋', color: 'bg-rose-50 border-rose-200 hover:bg-rose-100' },
-  ]
+  const plan = (org as any)?.plan ?? (org as any)?.plan_tier ?? 'free'
+  const creditsUsed = usage?.monthly_ai_calls ?? 0
+  const creditsBalance = usage?.credits_balance ?? 0
+
+  const greeting = () => {
+    const h = new Date().getHours()
+    const name = user?.full_name?.split(' ')[0] || 'there'
+    if (h < 12) return `Good morning, ${name} 👋`
+    if (h < 18) return `Good afternoon, ${name} 👋`
+    return `Good evening, ${name} 👋`
+  }
 
   return (
-    <div className="min-h-screen bg-[#F9F7F2]">
-      {/* Top nav */}
-      <nav className="bg-white border-b border-black/6 px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-violet-700 rounded-lg flex items-center justify-center">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
-          </div>
-          <span className="font-serif font-bold text-[#0F0F0F]">Dacexy</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-[#9E9E9E]">{user?.email || ''}</span>
-          <button
-            onClick={() => { logout(); window.location.href = '/login' }}
-            className="text-sm text-[#5C5C5C] hover:text-[#0F0F0F] font-medium transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </nav>
-
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        {/* Welcome */}
-        <div className="mb-8">
-          <h1 className="font-serif text-3xl font-semibold text-[#0F0F0F]">
-            Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''} 👋
-          </h1>
-          <p className="text-[#9E9E9E] mt-1">
-            {org?.name || 'Your workspace'} · <span className="capitalize">{org?.plan_tier || 'free'}</span> plan
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="font-serif text-3xl font-semibold text-[#0F0F0F] mb-1">{greeting()}</h1>
+          <p className="text-sm text-[#9E9E9E]">
+            {(org as any)?.name ?? 'My Workspace'} ·{' '}
+            <span className={cn('font-semibold px-1.5 py-0.5 rounded-full text-[10px]', planColor(plan))}>
+              {planLabel(plan)} Plan
+            </span>
           </p>
         </div>
-
-        {/* Usage cards */}
-        {usage && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-white border border-black/6 rounded-2xl p-5 shadow-soft">
-              <p className="text-xs text-[#9E9E9E] font-medium uppercase tracking-wide">AI Calls</p>
-              <p className="text-2xl font-serif font-semibold text-[#0F0F0F] mt-1">{usage.monthly_ai_calls || 0}</p>
-              <p className="text-xs text-[#B0B0B0] mt-1">This month</p>
-            </div>
-            <div className="bg-white border border-black/6 rounded-2xl p-5 shadow-soft">
-              <p className="text-xs text-[#9E9E9E] font-medium uppercase tracking-wide">Credits</p>
-              <p className="text-2xl font-serif font-semibold text-[#0F0F0F] mt-1">{usage.credits_balance || 0}</p>
-              <p className="text-xs text-[#B0B0B0] mt-1">Available</p>
-            </div>
-            <div className="bg-white border border-black/6 rounded-2xl p-5 shadow-soft">
-              <p className="text-xs text-[#9E9E9E] font-medium uppercase tracking-wide">Plan</p>
-              <p className="text-2xl font-serif font-semibold text-[#0F0F0F] mt-1 capitalize">{usage.plan_tier || 'Free'}</p>
-              <Link href="/billing" className="text-xs text-violet-600 font-semibold mt-1 block hover:text-violet-800">Upgrade →</Link>
-            </div>
-          </div>
+        {(plan === 'free' || plan === 'starter') && (
+          <Link href="/billing"
+            className="flex items-center gap-2 bg-violet-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-violet-800 transition-all shadow-glow">
+            <Sparkles size={13} /> Upgrade plan
+          </Link>
         )}
+      </div>
 
-        {/* Features grid */}
-        <h2 className="font-serif text-lg font-semibold text-[#0F0F0F] mb-4">Quick access</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {features.map((f) => (
-            <Link
-              key={f.title}
-              href={f.href}
-              className={`p-5 bg-white border rounded-2xl transition-all shadow-soft hover:shadow-card hover:-translate-y-0.5 ${f.color}`}
-            >
-              <div className="text-2xl mb-3">{f.icon}</div>
-              <h3 className="font-semibold text-[#0F0F0F] text-sm">{f.title}</h3>
-              <p className="text-[#9E9E9E] text-xs mt-1">{f.desc}</p>
-            </Link>
-          ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <StatCard icon={Zap}          color="violet"  label="AI Calls"      value={creditsUsed}    sub="This month"         href="/billing" />
+        <StatCard icon={MessageSquare}color="blue"    label="Chat sessions"  value={sessions.length} sub="Total"             href="/chat" />
+        <StatCard icon={Bot}          color="emerald" label="Agent runs"     value="0"              sub="Autonomous tasks"    href="/agent" />
+        <StatCard icon={CreditCard}   color="amber"   label="Credits"        value={creditsBalance} sub="Available"          href="/billing" />
+      </div>
+
+      <div className="bg-white border border-black/6 rounded-2xl p-5 shadow-soft mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <Activity size={15} className="text-violet-600" />
+          <span className="text-sm font-bold text-[#0F0F0F]">Plan: {planLabel(plan)}</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+          <div className="h-full rounded-full bg-violet-600 transition-all duration-700" style={{ width: '10%' }} />
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-[10px] text-[#B0B0B0]">Resets monthly</span>
+          <Link href="/billing" className="text-[10px] font-bold text-violet-600 hover:text-violet-800">Upgrade →</Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xs font-extrabold text-[#9E9E9E] uppercase tracking-widest mb-4">Quick actions</h2>
+          <div className="space-y-2.5">
+            <QuickAction icon={MessageSquare} href="/chat"      title="New chat"         desc="Start a conversation with DeepSeek AI" />
+            <QuickAction icon={Bot}           href="/agent"     title="Run agent"        desc="Give AI a multi-step autonomous goal" />
+            <QuickAction icon={Users}         href="/team"      title="Invite teammates" desc="Add colleagues to your workspace" />
+            <QuickAction icon={CreditCard}    href="/billing"   title="Manage billing"   desc="View plans and upgrade your account" />
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-xs font-extrabold text-[#9E9E9E] uppercase tracking-widest mb-4">Recent chats</h2>
+          <div className="bg-white border border-black/6 rounded-2xl shadow-soft overflow-hidden">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw size={16} className="animate-spin text-violet-600" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="py-8 text-center">
+                <MessageSquare size={24} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-[#9E9E9E]">No chats yet. Start a conversation!</p>
+                <Link href="/chat" className="inline-block mt-3 text-xs font-bold text-violet-600 hover:text-violet-800">
+                  Start chatting →
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-black/4">
+                {sessions.map((s: any) => (
+                  <Link key={s.id} href={`/chat`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-all">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                      <MessageSquare size={12} className="text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#0F0F0F] truncate">{s.title || 'Chat session'}</p>
+                      <p className="text-xs text-[#9E9E9E]">{s.created_at ? formatRelative(s.created_at) : ''}</p>
+                    </div>
+                    <ChevronRight size={12} className="text-gray-300 shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
-}
+    }
