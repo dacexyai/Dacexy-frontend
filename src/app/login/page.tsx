@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/dashboard')
+    if (isAuthenticated) router.replace('/chat')
   }, [isAuthenticated])
 
   async function handleLogin(e?: React.FormEvent) {
