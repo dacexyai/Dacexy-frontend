@@ -5,21 +5,25 @@ export function getAccessToken() {
 }
 
 export function setTokens(a: string, r: string) {
-  localStorage.setItem('access_token', a)
-  localStorage.setItem('refresh_token', r)
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('access_token', a)
+    localStorage.setItem('refresh_token', r)
+  }
 }
 
 export function clearTokens() {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('dacexy_auth')
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('dacexy_auth')
+  }
 }
 
-async function request(path: string, opts: { method?: string; body?: any; headers?: any; signal?: AbortSignal } = {}) {
+async function request(path: string, opts: { method?: string; body?: any; headers?: any } = {}) {
   const token = getAccessToken()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(opts.headers as Record<string, string>),
+    ...(opts.headers || {}),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -28,12 +32,17 @@ async function request(path: string, opts: { method?: string; body?: any; header
 
   try {
     const res = await fetch(`${API_URL}${path}`, {
-      ...opts,
+      method: opts.method || 'GET',
       headers,
-      body: opts.body ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)) : opts.body,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: controller.signal,
     })
     clearTimeout(timeout)
+    if (res.status === 401) {
+      clearTokens()
+      if (typeof window !== 'undefined') window.location.href = '/login'
+      throw new Error('Session expired')
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Request failed' }))
       throw new Error(typeof err.detail === 'object' ? err.detail.message : err.detail || 'Request failed')
@@ -80,15 +89,17 @@ export const chat = {
   },
 }
 
+export const agent = {
+  list: () => request('/agent/tasks').then((r: any) => r.tasks || []),
+  create: (task: string, context?: string) =>
+    request('/agent/run', { method: 'POST', body: { task, context } }),
+  wsUrl: (id: string) => `wss://dacexy-backend-v7ku.onrender.com/ws/agent/${id}`,
+}
+
 export const billing = {
   getPlans: () => request('/billing/plans').then((r: any) => r.plans || []),
   getUsage: () => request('/billing/usage'),
   createOrder: (plan_tier: string) => request('/billing/order', { method: 'POST', body: { plan_tier } }),
-}
-
-export const agent = {
-  run: (task: string, context?: string) => request('/agent/run', { method: 'POST', body: { task, context } }),
-  listTasks: () => request('/agent/tasks').then((r: any) => r.tasks || []),
 }
 
 export const media = {
@@ -104,4 +115,9 @@ export const websites = {
 export const memory = {
   list: () => request('/memory/').then((r: any) => r.memories || []),
   add: (content: string) => request('/memory/', { method: 'POST', body: { content } }),
-    }
+}
+
+export const desktop = {
+  getStatus: () => Promise.resolve({ connected: false }),
+  downloadUrl: (os: string) => `https://dacexy-backend-v7ku.onrender.com/desktop/download/${os}`,
+}
