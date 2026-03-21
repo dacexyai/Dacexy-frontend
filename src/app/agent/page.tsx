@@ -1,4 +1,4 @@
-use client'
+'use client'
 import { useState, useEffect } from 'react'
 import { Bot, Plus, CheckCircle2, XCircle, Clock, Loader2, Play } from 'lucide-react'
 import { agent } from '@/lib/api'
