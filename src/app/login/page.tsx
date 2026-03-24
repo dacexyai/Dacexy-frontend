@@ -26,9 +26,15 @@ export default function LoginPage() {
     setError('')
     try {
       const data = await auth.login(email, password)
-      let userData = null
-      let orgData = null
-      try { userData = await auth.me() } catch {}
+// Save token FIRST before any other calls
+localStorage.setItem('access_token', data.access_token)
+localStorage.setItem('refresh_token', data.refresh_token)
+let userData = null
+let orgData = null
+try { userData = await auth.me() } catch {}
+try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
+login(userData, orgData, data.access_token, data.refresh_token)
+window.location.replace('/chat')
       try { orgData = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://dacexy-backend-v7ku.onrender.com/api/v1'}/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
       login(userData, orgData, data.access_token, data.refresh_token)
       window.location.replace('/chat')
