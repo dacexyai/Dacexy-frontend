@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText, Globe } from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
@@ -15,6 +15,11 @@ function cn(...classes: (string | boolean | undefined)[]) {
 }
 
 function Message({ role, content, streaming }: { role: string; content: string; streaming?: boolean }) {
+  const websiteMatch = content.match(/\/websites\/([a-zA-Z0-9-]+)\/preview/)
+  const previewUrl = websiteMatch
+    ? `https://dacexy-backend-v7ku.onrender.com/api/v1/websites/${websiteMatch[1]}/preview`
+    : null
+
   if (role === 'user') {
     return (
       <div className="flex justify-end px-4 py-2">
@@ -24,6 +29,7 @@ function Message({ role, content, streaming }: { role: string; content: string; 
       </div>
     )
   }
+
   return (
     <div className="px-4 py-5 border-b border-black/4 last:border-0">
       <div className="flex items-center gap-2.5 mb-3">
@@ -32,9 +38,39 @@ function Message({ role, content, streaming }: { role: string; content: string; 
         </div>
         <span className="text-xs font-semibold text-violet-700">Dacexy AI</span>
       </div>
-      <div className={cn('text-sm text-[#0F0F0F] leading-7 pl-8 whitespace-pre-wrap', streaming && 'after:content-["▋"] after:animate-pulse')}>
+      <div className={cn(
+        'text-sm text-[#0F0F0F] leading-7 pl-8 whitespace-pre-wrap',
+        streaming && 'after:content-["▋"] after:animate-pulse'
+      )}>
         {content}
       </div>
+      {previewUrl && (
+        <div className="mt-4 pl-8">
+          <div className="border border-black/8 rounded-2xl overflow-hidden shadow-soft">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-black/6">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-amber-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                </div>
+                <Globe size={12} className="text-[#9E9E9E]" />
+                <span className="text-xs text-[#9E9E9E]">Website Preview</span>
+              </div>
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-violet-600 hover:text-violet-800 font-semibold">
+                Open full screen ↗
+              </a>
+            </div>
+            <iframe
+              src={previewUrl}
+              className="w-full h-72 border-0"
+              title="Website Preview"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -97,7 +133,10 @@ export default function ChatPage() {
 
   async function deleteMemory(id: string) {
     try {
-      await fetch(`${API_URL}/memory/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      await fetch(`${API_URL}/memory/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
       setMemories(prev => prev.filter(m => m.id !== id))
     } catch {}
   }
@@ -130,11 +169,13 @@ export default function ChatPage() {
     setActiveId(id)
     setSidebarOpen(false)
     try {
-      const r = await fetch(`${API_URL}/ai/sessions/${id}/messages`, { headers: { Authorization: `Bearer ${token}` } })
+      const r = await fetch(`${API_URL}/ai/sessions/${id}/messages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
       const data = await r.json()
-      const msgs: Msg[] = (data.messages || []).map((m: any, i: number) => ({
-        id: String(i), role: m.role, content: m.content
-      })).filter((m: Msg) => m.role !== 'system')
+      const msgs: Msg[] = (data.messages || [])
+        .map((m: any, i: number) => ({ id: String(i), role: m.role, content: m.content }))
+        .filter((m: Msg) => m.role !== 'system')
       setMessages(msgs)
     } catch {}
   }
@@ -158,21 +199,21 @@ export default function ChatPage() {
     setMessages([...allMessages, aiMsg])
 
     try {
-      const endpoint = agentMode ? `${API_URL}/agent/run` : `${API_URL}/ai/chat`
-
       if (agentMode) {
-        const res = await fetch(endpoint, {
+        const res = await fetch(`${API_URL}/agent/run`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ task: msg })
         })
         const data = await res.json()
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.result || 'Agent task completed.' } : m))
+        setMessages(prev => prev.map(m =>
+          m.id === aiMsg.id ? { ...m, content: data.result || 'Agent task completed.' } : m
+        ))
         setStreaming(false)
         return
       }
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(`${API_URL}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -198,7 +239,9 @@ export default function ChatPage() {
               if (data.type === 'session_id' && !activeId) setActiveId(data.session_id)
               if (data.type === 'chunk') {
                 full += data.content
-                setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m))
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMsg.id ? { ...m, content: full } : m
+                ))
               }
               if (data.type === 'done') {
                 setStreaming(false)
@@ -211,7 +254,9 @@ export default function ChatPage() {
         }
       }
     } catch {
-      setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m))
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m
+      ))
     } finally { setStreaming(false) }
   }, [input, streaming, activeId, messages, token, agentMode])
 
@@ -262,7 +307,8 @@ export default function ChatPage() {
                   activeId === s.id ? 'bg-violet-50' : 'hover:bg-gray-50'
                 )}>
                 <MessageSquare size={13} className={activeId === s.id ? 'text-violet-600' : 'text-[#B0B0B0]'} />
-                <p className={cn('text-xs font-medium truncate flex-1', activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
+                <p className={cn('text-xs font-medium truncate flex-1',
+                  activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
                   {s.title || 'New conversation'}
                 </p>
               </div>
@@ -334,7 +380,9 @@ export default function ChatPage() {
               <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
             </div>
             {agentMode && (
-              <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Agent Mode</span>
+              <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                Agent Mode
+              </span>
             )}
           </div>
           <button onClick={() => setMemoryOpen(!memoryOpen)}
@@ -357,15 +405,15 @@ export default function ChatPage() {
                   How can I help you?
                 </h2>
                 <p className="text-sm text-[#9E9E9E] leading-relaxed mb-8">
-                  I&apos;m Dacexy AI, powered by DeepSeek. I can analyze data,
-                  write code, search the web, and execute complex tasks autonomously.
+                  I&apos;m Dacexy AI, powered by DeepSeek. I can analyze data, write code,
+                  search the web, build websites, and execute complex tasks autonomously.
                 </p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
                     'Analyze this dataset for trends',
                     'Write a Python script to automate my workflow',
                     'Search for latest AI news today',
-                    'Draft a project proposal email',
+                    'Build me a landing page for my SaaS',
                   ].map(s => (
                     <button key={s} onClick={() => { setInput(s); inputRef.current?.focus() }}
                       className="text-left text-xs text-[#5C5C5C] bg-white hover:bg-gray-50 border border-black/8 rounded-xl px-4 py-3 transition-all shadow-soft leading-relaxed">
@@ -394,13 +442,16 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto">
             <div className={cn(
               'border rounded-2xl transition-all shadow-soft',
-              agentMode ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400' : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
+              agentMode
+                ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400'
+                : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
             )}>
               {uploadedFile && (
                 <div className="flex items-center gap-2 px-4 pt-3 pb-1">
                   <FileText size={13} className="text-violet-600" />
                   <span className="text-xs text-violet-700 font-medium truncate flex-1">{uploadedFile.name}</span>
-                  <button onClick={() => { setUploadedFile(null); setInput('') }} className="text-[#B0B0B0] hover:text-red-500">
+                  <button onClick={() => { setUploadedFile(null); setInput('') }}
+                    className="text-[#B0B0B0] hover:text-red-500">
                     <X size={12} />
                   </button>
                 </div>
@@ -410,7 +461,9 @@ export default function ChatPage() {
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                placeholder={agentMode ? "Describe a task for the AI agent..." : "Ask anything… (Shift+Enter for new line)"}
+                placeholder={agentMode
+                  ? "Describe a task for the AI agent..."
+                  : "Ask anything, build a website, search the web… (Shift+Enter for new line)"}
                 rows={1}
                 className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
               />
@@ -424,7 +477,9 @@ export default function ChatPage() {
                   <button onClick={() => setAgentMode(!agentMode)}
                     className={cn(
                       'flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg transition-colors',
-                      agentMode ? 'text-violet-700 bg-violet-100 font-semibold' : 'text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50'
+                      agentMode
+                        ? 'text-violet-700 bg-violet-100 font-semibold'
+                        : 'text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50'
                     )}>
                     <Bot size={13} />
                     <span>Agent</span>
@@ -436,6 +491,36 @@ export default function ChatPage() {
                   </button>
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
                     className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50 disabled:opacity-50">
-                    {uploading ? <span className="text-[10px]">Uploading...</span> : <><Paperclip size={13} /><span>Upload</span></>}
+                    {uploading
+                      ? <span className="text-[10px]">Uploading...</span>
+                      : <><Paperclip size={13} /><span>Upload</span></>
+                    }
                   </button>
-                  <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv,.py,.js,.ts,.tsx,.jsx" className="hidden" onC
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.txt,.md,.csv,.py,.js,.ts,.tsx,.jsx"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                <button onClick={send} disabled={!input.trim() || streaming}
+                  className={cn(
+                    'w-8 h-8 rounded-xl flex items-center justify-center transition-all',
+                    input.trim() && !streaming
+                      ? 'bg-violet-700 text-white hover:bg-violet-800'
+                      : 'bg-[#E8E3D8] text-[#C0C0C0] cursor-not-allowed'
+                  )}>
+                  <Send size={14} />
+                </button>
+              </div>
+            </div>
+            <p className="text-center text-[10px] text-[#C0C0C0] mt-2">
+              Powered by DeepSeek R1 · Responses may not always be accurate
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
