@@ -1,13 +1,14 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
 
 interface Msg { id: string; role: string; content: string }
 interface Session { id: string; title: string; created_at: string }
+interface Memory { id: string; content: string; created_at: string }
 
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ')
@@ -48,7 +49,10 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
   const [agentMode, setAgentMode] = useState(false)
+  const [memories, setMemories] = useState<Memory[]>([])
+  const [loadingMemories, setLoadingMemories] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
@@ -56,11 +60,20 @@ export default function ChatPage() {
   useEffect(() => {
     if (!token) { router.replace('/login'); return }
     loadSessions()
+    const templatePrompt = localStorage.getItem('template_prompt')
+    if (templatePrompt) {
+      setInput(templatePrompt)
+      localStorage.removeItem('template_prompt')
+    }
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (memoryOpen) loadMemories()
+  }, [memoryOpen])
 
   async function loadSessions() {
     try {
@@ -68,6 +81,22 @@ export default function ChatPage() {
       const data = await r.json()
       setSessions(data.sessions || [])
     } catch {} finally { setLoadingSessions(false) }
+  }
+
+  async function loadMemories() {
+    setLoadingMemories(true)
+    try {
+      const r = await fetch(`${API_URL}/memory/`, { headers: { Authorization: `Bearer ${token}` } })
+      const data = await r.json()
+      setMemories(data.memories || [])
+    } catch {} finally { setLoadingMemories(false) }
+  }
+
+  async function deleteMemory(id: string) {
+    try {
+      await fetch(`${API_URL}/memory/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      setMemories(prev => prev.filter(m => m.id !== id))
+    } catch {}
   }
 
   async function loadSession(id: string) {
@@ -78,7 +107,7 @@ export default function ChatPage() {
       const data = await r.json()
       const msgs: Msg[] = (data.messages || []).map((m: any, i: number) => ({
         id: String(i), role: m.role, content: m.content
-      }))
+      })).filter((m: Msg) => m.role !== 'system')
       setMessages(msgs)
     } catch {}
   }
@@ -110,8 +139,7 @@ export default function ChatPage() {
           body: JSON.stringify({ task: msg })
         })
         const data = await res.json()
-        const result = data.result || 'Agent task completed.'
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: result } : m))
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.result || 'Agent task completed.' } : m))
         setStreaming(false)
         return
       }
@@ -139,12 +167,22 @@ export default function ChatPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.type === 'session_id' && !activeId) setActiveId(data.session_id)
+              if (data.type === 'session_id' && !activeId) {
+                setActiveId(data.session_id)
+              }
               if (data.type === 'chunk') {
                 full += data.content
                 setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m))
               }
-              if (data.type === 'done') { setStreaming(false); loadSessions() }
+              if (data.type === 'done') {
+                setStreaming(false)
+                loadSessions()
+                // Refresh memories if user shared context
+                const memoryKw = ['my company', 'my business', 'we are', 'i am', 'our product', 'remember']
+                if (memoryKw.some(kw => msg.toLowerCase().includes(kw))) {
+                  loadMemories()
+                }
+              }
             } catch {}
           }
         }
@@ -167,10 +205,11 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setSidebarOpen(false)} />
-      )}
+      {/* Overlays */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setSidebarOpen(false)} />}
+      {memoryOpen && <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setMemoryOpen(false)} />}
 
+      {/* Chat sidebar */}
       <div className={cn(
         'fixed left-0 top-0 h-full z-40 flex flex-col w-64 bg-white border-r border-black/6 transition-transform duration-300',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -210,23 +249,83 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <Menu size={18} className="text-[#5C5C5C]" />
-          </button>
+      {/* Memory panel */}
+      <div className={cn(
+        'fixed right-0 top-0 h-full z-40 flex flex-col w-72 bg-white border-l border-black/6 transition-transform duration-300',
+        memoryOpen ? 'translate-x-0' : 'translate-x-full'
+      )}>
+        <div className="flex items-center justify-between p-4 border-b border-black/6">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-violet-700 flex items-center justify-center">
-              <Sparkles size={11} className="text-white" />
-            </div>
-            <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
+            <Brain size={16} className="text-violet-600" />
+            <h3 className="font-semibold text-sm text-[#0F0F0F]">AI Memory</h3>
           </div>
-          {agentMode && (
-            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Agent Mode</span>
+          <button onClick={() => setMemoryOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-3 border-b border-black/6 bg-violet-50">
+          <p className="text-xs text-violet-700">
+            The AI automatically saves context when you share information about your business. It uses this in all future chats.
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {loadingMemories ? (
+            <p className="text-xs text-center text-[#B0B0B0] py-4">Loading...</p>
+          ) : memories.length === 0 ? (
+            <div className="text-center py-8">
+              <Brain size={24} className="mx-auto text-[#D0D0D0] mb-2" />
+              <p className="text-xs text-[#B0B0B0]">No memories yet</p>
+              <p className="text-xs text-[#C0C0C0] mt-1">Tell the AI about your business and it will remember</p>
+            </div>
+          ) : (
+            memories.map(m => (
+              <div key={m.id} className="bg-[#F9F7F2] border border-black/6 rounded-xl p-3 group">
+                <p className="text-xs text-[#0F0F0F] leading-relaxed">{m.content}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[10px] text-[#B0B0B0]">{new Date(m.created_at).toLocaleDateString()}</p>
+                  <button onClick={() => deleteMemory(m.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
+        <div className="p-3 border-t border-black/6">
+          <p className="text-[10px] text-[#B0B0B0] text-center">Say "my company is..." to add memories</p>
+        </div>
+      </div>
 
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Menu size={18} className="text-[#5C5C5C]" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-violet-700 flex items-center justify-center">
+                <Sparkles size={11} className="text-white" />
+              </div>
+              <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
+            </div>
+            {agentMode && (
+              <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Agent Mode</span>
+            )}
+          </div>
+          <button onClick={() => setMemoryOpen(!memoryOpen)}
+            className={cn('flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors',
+              memoryOpen ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100'
+            )}>
+            <Brain size={14} />
+            <span>Memory</span>
+          </button>
+        </div>
+
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-[#F9F7F2]">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -239,13 +338,13 @@ export default function ChatPage() {
                 </h2>
                 <p className="text-sm text-[#9E9E9E] leading-relaxed mb-8">
                   I&apos;m Dacexy AI, powered by DeepSeek. I can analyze data,
-                  write code, answer questions, and execute complex tasks autonomously.
+                  write code, search the web, and execute complex tasks autonomously.
                 </p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
                     'Analyze this dataset for trends',
                     'Write a Python script to automate my workflow',
-                    'Research competitors in our market',
+                    'Search for latest AI news today',
                     'Draft a project proposal email',
                   ].map(s => (
                     <button key={s} onClick={() => { setInput(s); inputRef.current?.focus() }}
@@ -271,20 +370,19 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Input */}
         <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
             <div className={cn(
               'border rounded-2xl transition-all shadow-soft',
-              agentMode
-                ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400'
-                : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
+              agentMode ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400' : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
             )}>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                placeholder={agentMode ? "Describe a task for the AI agent to execute autonomously..." : "Ask anything… (Shift+Enter for new line)"}
+                placeholder={agentMode ? "Describe a task for the AI agent..." : "Ask anything… (Shift+Enter for new line)"}
                 rows={1}
                 className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
               />
@@ -302,6 +400,11 @@ export default function ChatPage() {
                     )}>
                     <Bot size={13} />
                     <span>Agent</span>
+                  </button>
+                  <button onClick={() => setMemoryOpen(true)}
+                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50">
+                    <Brain size={13} />
+                    <span>Memory</span>
                   </button>
                 </div>
                 <button onClick={send} disabled={!input.trim() || streaming}
@@ -323,4 +426,4 @@ export default function ChatPage() {
       </div>
     </div>
   )
-            }
+  }
