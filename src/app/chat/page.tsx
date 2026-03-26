@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2 } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText } from 'lucide-react'
 import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
@@ -53,8 +53,11 @@ export default function ChatPage() {
   const [agentMode, setAgentMode] = useState(false)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loadingMemories, setLoadingMemories] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<{name: string; text: string} | null>(null)
+  const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
   useEffect(() => {
@@ -99,6 +102,30 @@ export default function ChatPage() {
     } catch {}
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`${API_URL}/upload/file`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Upload failed')
+      setUploadedFile({ name: file.name, text: data.extracted_text })
+      setInput(`I have uploaded a file called "${file.name}". Here is its content:\n\n${data.extracted_text.slice(0, 3000)}\n\nPlease analyze this and answer my questions about it.`)
+    } catch (err: any) {
+      alert(err.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   async function loadSession(id: string) {
     setActiveId(id)
     setSidebarOpen(false)
@@ -122,6 +149,7 @@ export default function ChatPage() {
     const msg = input.trim()
     if (!msg || streaming) return
     setInput('')
+    setUploadedFile(null)
     setStreaming(true)
 
     const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg }
@@ -167,9 +195,7 @@ export default function ChatPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.type === 'session_id' && !activeId) {
-                setActiveId(data.session_id)
-              }
+              if (data.type === 'session_id' && !activeId) setActiveId(data.session_id)
               if (data.type === 'chunk') {
                 full += data.content
                 setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m))
@@ -177,11 +203,8 @@ export default function ChatPage() {
               if (data.type === 'done') {
                 setStreaming(false)
                 loadSessions()
-                // Refresh memories if user shared context
                 const memoryKw = ['my company', 'my business', 'we are', 'i am', 'our product', 'remember']
-                if (memoryKw.some(kw => msg.toLowerCase().includes(kw))) {
-                  loadMemories()
-                }
+                if (memoryKw.some(kw => msg.toLowerCase().includes(kw))) loadMemories()
               }
             } catch {}
           }
@@ -205,7 +228,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      {/* Overlays */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setSidebarOpen(false)} />}
       {memoryOpen && <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setMemoryOpen(false)} />}
 
@@ -265,7 +287,7 @@ export default function ChatPage() {
         </div>
         <div className="p-3 border-b border-black/6 bg-violet-50">
           <p className="text-xs text-violet-700">
-            The AI automatically saves context when you share information about your business. It uses this in all future chats.
+            The AI automatically saves context when you share info about your business and uses it in all future chats.
           </p>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -275,7 +297,7 @@ export default function ChatPage() {
             <div className="text-center py-8">
               <Brain size={24} className="mx-auto text-[#D0D0D0] mb-2" />
               <p className="text-xs text-[#B0B0B0]">No memories yet</p>
-              <p className="text-xs text-[#C0C0C0] mt-1">Tell the AI about your business and it will remember</p>
+              <p className="text-xs text-[#C0C0C0] mt-1">Tell the AI about your business</p>
             </div>
           ) : (
             memories.map(m => (
@@ -299,7 +321,6 @@ export default function ChatPage() {
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <div className="flex items-center justify-between gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -325,7 +346,6 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-[#F9F7F2]">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -370,13 +390,21 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input */}
         <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
             <div className={cn(
               'border rounded-2xl transition-all shadow-soft',
               agentMode ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400' : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
             )}>
+              {uploadedFile && (
+                <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+                  <FileText size={13} className="text-violet-600" />
+                  <span className="text-xs text-violet-700 font-medium truncate flex-1">{uploadedFile.name}</span>
+                  <button onClick={() => { setUploadedFile(null); setInput('') }} className="text-[#B0B0B0] hover:text-red-500">
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
@@ -406,24 +434,8 @@ export default function ChatPage() {
                     <Brain size={13} />
                     <span>Memory</span>
                   </button>
-                </div>
-                <button onClick={send} disabled={!input.trim() || streaming}
-                  className={cn(
-                    'w-8 h-8 rounded-xl flex items-center justify-center transition-all',
-                    input.trim() && !streaming
-                      ? 'bg-violet-700 text-white hover:bg-violet-800'
-                      : 'bg-[#E8E3D8] text-[#C0C0C0] cursor-not-allowed'
-                  )}>
-                  <Send size={14} />
-                </button>
-              </div>
-            </div>
-            <p className="text-center text-[10px] text-[#C0C0C0] mt-2">
-              Powered by DeepSeek R1 · Responses may not always be accurate
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-  }
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50 disabled:opacity-50">
+                    {uploading ? <span className="text-[10px]">Uploading...</span> : <><Paperclip size={13} /><span>Upload</span></>}
+                  </button>
+                  <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv,.py,.js,.ts,.tsx,.jsx" className="hidden" onC
