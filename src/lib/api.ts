@@ -297,7 +297,39 @@ export async function updateSettings(settings: any): Promise<any> {
     body: JSON.stringify(settings),
   });
 }
+// ─── Grouped Exports (for page imports) ──────────────────────────────────────
 
+export const auth = {
+  login,
+  register,
+  logout,
+  me: getMe,
+  verifyEmail: async (token: string) => {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-email?token=${token}`)
+    if (!res.ok) throw new Error('Verification failed')
+    return res.json()
+  },
+}
+
+export const agent = {
+  list: async () => apiFetch<any[]>('/agent/runs'),
+  run: runAgent,
+  status: getAgentStatus,
+}
+
+export const billing = {
+  getPlans,
+  createOrder,
+  verifyPayment,
+  getSubscription: async () => apiFetch<any>('/billing/subscription'),
+}
+
+export const orgs = {
+  me: async () => apiFetch<any>('/orgs/me'),
+  update: async (data: any) => apiFetch<any>('/orgs/me', { method: 'PUT', body: JSON.stringify(data) }),
+  members: getTeamMembers,
+  invite: inviteTeamMember,
+}
 export default {
   login,
   register,
