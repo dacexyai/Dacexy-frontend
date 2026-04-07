@@ -8,6 +8,7 @@ export function setTokens(a: string, r: string) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('access_token', a)
     localStorage.setItem('refresh_token', r)
+    localStorage.setItem('token_time', Date.now().toString())
   }
 }
 
@@ -15,17 +16,23 @@ export function clearTokens() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('token_time')
     localStorage.removeItem('dacexy_auth')
   }
 }
 
 async function request(path: string, opts: { method?: string; body?: any; headers?: any } = {}) {
   const token = getAccessToken()
+  if (!token) {
+    if (typeof window !== 'undefined') window.location.replace('/login')
+    throw new Error('Not logged in')
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
     ...(opts.headers || {}),
   }
-  if (token) headers['Authorization'] = `Bearer ${token}`
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 60000)
@@ -38,15 +45,18 @@ async function request(path: string, opts: { method?: string; body?: any; header
       signal: controller.signal,
     })
     clearTimeout(timeout)
+
     if (res.status === 401) {
       clearTokens()
-      if (typeof window !== 'undefined') window.location.href = '/login'
-      throw new Error('Session expired')
+      if (typeof window !== 'undefined') window.location.replace('/login')
+      throw new Error('Session expired. Please login again.')
     }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Request failed' }))
       throw new Error(typeof err.detail === 'object' ? err.detail.message : err.detail || 'Request failed')
     }
+
     const text = await res.text()
     return text ? JSON.parse(text) : {}
   } catch (err: any) {
@@ -81,6 +91,10 @@ export const chat = {
   getSession: (id: string) => request(`/ai/sessions/${id}/messages`),
   send: async (messages: { role: string; content: string }[], session_id?: string) => {
     const token = getAccessToken()
+    if (!token) {
+      window.location.replace('/login')
+      throw new Error('Not logged in')
+    }
     return fetch(`${API_URL}/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -119,5 +133,5 @@ export const memory = {
 
 export const desktop = {
   getStatus: () => Promise.resolve({ connected: false }),
-  downloadUrl: (os: string) => `https://dacexy-backend-v7ku.onrender.com/desktop/download/${os}`,
+  downloadUrl: (os: string) => `https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_${os}.bat`,
 }
