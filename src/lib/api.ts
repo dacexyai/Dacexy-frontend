@@ -1,137 +1,327 @@
-const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://dacexy-backend-v7ku.onrender.com/api/v1";
 
-export function getAccessToken() {
-  return typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-}
+// ─── Token Helpers ────────────────────────────────────────────────────────────
 
-export function setTokens(a: string, r: string) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('access_token', a)
-    localStorage.setItem('refresh_token', r)
-    localStorage.setItem('token_time', Date.now().toString())
-  }
-}
+export const getToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("access_token");
+};
 
-export function clearTokens() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('token_time')
-    localStorage.removeItem('dacexy_auth')
-  }
-}
+export const setToken = (token: string): void => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("access_token", token);
+};
 
-async function request(path: string, opts: { method?: string; body?: any; headers?: any } = {}) {
-  const token = getAccessToken()
-  if (!token) {
-    if (typeof window !== 'undefined') window.location.replace('/login')
-    throw new Error('Not logged in')
-  }
+export const removeToken = (): void => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("access_token");
+};
+
+// ─── Base Fetch ───────────────────────────────────────────────────────────────
+
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-    ...(opts.headers || {}),
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 60000)
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-  try {
-    const res = await fetch(`${API_URL}${path}`, {
-      method: opts.method || 'GET',
-      headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
 
-    if (res.status === 401) {
-      clearTokens()
-      if (typeof window !== 'undefined') window.location.replace('/login')
-      throw new Error('Session expired. Please login again.')
+  return response.json();
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface RegisterResponse {
+  id: string;
+  email: string;
+  full_name: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  plan?: string;
+  credits?: number;
+}
+
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  const formData = new URLSearchParams();
+  formData.append("username", email);
+  formData.append("password", password);
+
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData.toString(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Login failed" }));
+    throw new Error(error.detail || "Login failed");
+  }
+
+  const data: LoginResponse = await response.json();
+
+  // ✅ Save as access_token — this is the key fix
+  setToken(data.access_token);
+
+  return data;
+}
+
+export async function register(
+  email: string,
+  password: string,
+  full_name: string
+): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password, full_name }),
+  });
+}
+
+export async function logout(): Promise<void> {
+  removeToken();
+}
+
+export async function getMe(): Promise<User> {
+  return apiFetch<User>("/auth/me");
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+export interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_id?: string;
+  use_web_search?: boolean;
+  use_memory?: boolean;
+}
+
+export interface ChatResponse {
+  response: string;
+  conversation_id: string;
+  sources?: string[];
+}
+
+export async function sendMessage(payload: ChatRequest): Promise<ChatResponse> {
+  return apiFetch<ChatResponse>("/chat/message", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function streamMessage(
+  payload: ChatRequest,
+  onChunk: (chunk: string) => void
+): Promise<void> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("Stream failed");
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+
+  if (!reader) return;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    const lines = text.split("\n").filter((l) => l.startsWith("data: "));
+    for (const line of lines) {
+      const data = line.replace("data: ", "").trim();
+      if (data && data !== "[DONE]") {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.content) onChunk(parsed.content);
+        } catch {
+          onChunk(data);
+        }
+      }
     }
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Request failed' }))
-      throw new Error(typeof err.detail === 'object' ? err.detail.message : err.detail || 'Request failed')
-    }
-
-    const text = await res.text()
-    return text ? JSON.parse(text) : {}
-  } catch (err: any) {
-    clearTimeout(timeout)
-    if (err.name === 'AbortError') throw new Error('Server timeout. Please try again.')
-    throw err
   }
 }
 
-export const auth = {
-  register: (d: { full_name: string; email: string; password: string; org_name?: string }) =>
-    request('/auth/register', {
-      method: 'POST',
-      body: { ...d, org_name: d.org_name || `${d.full_name.split(' ')[0]}'s Workspace` },
-    }),
-  login: (email: string, password: string) =>
-    request('/auth/login', { method: 'POST', body: { email, password } }),
-  me: () => request('/auth/me'),
-  logout: () => request('/auth/logout', { method: 'POST' }).catch(() => {}),
-  verifyEmail: (token: string) => request('/auth/verify-email', { method: 'POST', body: { token } }),
+export async function getConversations(): Promise<any[]> {
+  return apiFetch<any[]>("/chat/conversations");
 }
 
-export const orgs = {
-  getMe: () => request('/orgs/me'),
-  getMembers: () => request('/orgs/members').then((r: any) => r.members || []),
-  listApiKeys: () => request('/orgs/api-keys').then((r: any) => r.api_keys || []),
-  createApiKey: (name: string) => request('/orgs/api-keys', { method: 'POST', body: { name } }),
+export async function getConversation(id: string): Promise<any> {
+  return apiFetch<any>(`/chat/conversations/${id}`);
 }
 
-export const chat = {
-  listSessions: () => request('/ai/sessions').then((r: any) => r.sessions || []),
-  getSession: (id: string) => request(`/ai/sessions/${id}/messages`),
-  send: async (messages: { role: string; content: string }[], session_id?: string) => {
-    const token = getAccessToken()
-    if (!token) {
-      window.location.replace('/login')
-      throw new Error('Not logged in')
-    }
-    return fetch(`${API_URL}/ai/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messages, session_id, stream: true }),
-    })
-  },
+// ─── File Upload ──────────────────────────────────────────────────────────────
+
+export async function uploadFile(file: File): Promise<any> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/files/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!response.ok) throw new Error("File upload failed");
+  return response.json();
 }
 
-export const agent = {
-  list: () => request('/agent/tasks').then((r: any) => r.tasks || []),
-  create: (task: string, context?: string) =>
-    request('/agent/run', { method: 'POST', body: { task, context } }),
-  wsUrl: (id: string) => `wss://dacexy-backend-v7ku.onrender.com/ws/agent/${id}`,
+// ─── Memory ───────────────────────────────────────────────────────────────────
+
+export async function getMemories(): Promise<any[]> {
+  return apiFetch<any[]>("/memory/list");
 }
 
-export const billing = {
-  getPlans: () => request('/billing/plans').then((r: any) => r.plans || []),
-  getUsage: () => request('/billing/usage'),
-  createOrder: (plan_tier: string) => request('/billing/order', { method: 'POST', body: { plan_tier } }),
+export async function addMemory(content: string, category?: string): Promise<any> {
+  return apiFetch<any>("/memory/add", {
+    method: "POST",
+    body: JSON.stringify({ content, category }),
+  });
 }
 
-export const media = {
-  generateImage: (prompt: string) => request('/media/image', { method: 'POST', body: { prompt } }),
-  generateVideo: (prompt: string) => request('/media/video', { method: 'POST', body: { prompt } }),
+export async function deleteMemory(id: string): Promise<void> {
+  return apiFetch<void>(`/memory/${id}`, { method: "DELETE" });
 }
 
-export const websites = {
-  generate: (prompt: string) => request('/websites/generate', { method: 'POST', body: { prompt } }),
-  list: () => request('/websites/').then((r: any) => r.websites || []),
+// ─── Website Generation ───────────────────────────────────────────────────────
+
+export interface WebsiteGenRequest {
+  prompt: string;
+  style?: string;
 }
 
-export const memory = {
-  list: () => request('/memory/').then((r: any) => r.memories || []),
-  add: (content: string) => request('/memory/', { method: 'POST', body: { content } }),
+export async function generateWebsite(payload: WebsiteGenRequest): Promise<any> {
+  return apiFetch<any>("/website/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export const desktop = {
-  getStatus: () => Promise.resolve({ connected: false }),
-  downloadUrl: (os: string) => `https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_${os}.bat`,
+// ─── Agent ────────────────────────────────────────────────────────────────────
+
+export interface AgentTask {
+  task: string;
+  context?: string;
 }
+
+export async function runAgent(payload: AgentTask): Promise<any> {
+  return apiFetch<any>("/agent/run", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAgentStatus(taskId: string): Promise<any> {
+  return apiFetch<any>(`/agent/status/${taskId}`);
+}
+
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export async function getPlans(): Promise<any[]> {
+  return apiFetch<any[]>("/billing/plans");
+}
+
+export async function createOrder(planId: string): Promise<any> {
+  return apiFetch<any>("/billing/create-order", {
+    method: "POST",
+    body: JSON.stringify({ plan_id: planId }),
+  });
+}
+
+export async function verifyPayment(payload: any): Promise<any> {
+  return apiFetch<any>("/billing/verify-payment", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Team ─────────────────────────────────────────────────────────────────────
+
+export async function getTeamMembers(): Promise<any[]> {
+  return apiFetch<any[]>("/team/members");
+}
+
+export async function inviteTeamMember(email: string, role: string): Promise<any> {
+  return apiFetch<any>("/team/invite", {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export async function getSettings(): Promise<any> {
+  return apiFetch<any>("/settings");
+}
+
+export async function updateSettings(settings: any): Promise<any> {
+  return apiFetch<any>("/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+export default {
+  login,
+  register,
+  logout,
+  getMe,
+  getToken,
+  setToken,
+  removeToken,
+  sendMessage,
+  streamMessage,
+  getConversations,
+  getConversation,
+  uploadFile,
+  getMemories,
+  addMemory,
+  deleteMemory,
+  generateWebsite,
+  runAgent,
+  getAgentStatus,
+  getPlans,
+  createOrder,
+  verifyPayment,
+  getTeamMembers,
+  inviteTeamMember,
+  getSettings,
+  updateSettings,
+};
