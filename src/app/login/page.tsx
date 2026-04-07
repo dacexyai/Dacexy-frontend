@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
-import { auth } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+
+const API = 'https://dacexy-backend-v7ku.onrender.com/api/v1'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -25,19 +26,45 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const data = await auth.login(email, password)
-// Save token FIRST before any other calls
-localStorage.setItem('access_token', data.access_token)
-localStorage.setItem('refresh_token', data.refresh_token)
-let userData = null
-let orgData = null
-try { userData = await auth.me() } catch {}
-try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
-login(userData, orgData, data.access_token, data.refresh_token)
-window.location.replace('/chat')
-      try { orgData = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://dacexy-backend-v7ku.onrender.com/api/v1'}/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
-      login(userData, orgData, data.access_token, data.refresh_token)
+      // Step 1: Login
+      const formData = new URLSearchParams()
+      formData.append('username', email)
+      formData.append('password', password)
+
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Login failed')
+
+      const token = data.access_token
+      localStorage.setItem('access_token', token)
+
+      // Step 2: Get user info
+      let userData = null
+      try {
+        const meRes = await fetch(`${API}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (meRes.ok) userData = await meRes.json()
+      } catch {}
+
+      // Step 3: Get org info
+      let orgData = null
+      try {
+        const orgRes = await fetch(`${API}/orgs/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (orgRes.ok) orgData = await orgRes.json()
+      } catch {}
+
+      // Step 4: Save to store and redirect
+      login(userData, orgData, token, null)
       window.location.replace('/chat')
+
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password')
     } finally {
@@ -123,4 +150,4 @@ window.location.replace('/chat')
       </div>
     </div>
   )
-            }
+          }
