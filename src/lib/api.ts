@@ -326,6 +326,7 @@ export const billing = {
   createOrder,
   verifyPayment,
   getSubscription: async () => apiFetch<any>('/billing/subscription'),
+  getUsage: async () => apiFetch<any>('/billing/usage'),
 }
 
 export const orgs = {
