@@ -231,8 +231,12 @@ export const orgs = {
   update: async (data: any) => apiFetch<any>("/orgs/me", { method: "PUT", body: JSON.stringify(data) }),
   members: getTeamMembers,
   invite: inviteTeamMember,
+  listApiKeys: async () => apiFetch<any[]>("/orgs/api-keys"),
+  createApiKey: async (name: string) => apiFetch<any>("/orgs/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteApiKey: async (id: string) => apiFetch<any>(`/orgs/api-keys/${id}`, { method: "DELETE" }),
+  getUsage: async () => apiFetch<any>("/orgs/usage"),
+  getStats: async () => apiFetch<any>("/orgs/stats"),
 };
-
 export default {
   login, register, logout, getMe, getToken, setToken, removeToken,
   sendMessage, streamMessage, getConversations, getConversation,
