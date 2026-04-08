@@ -230,6 +230,7 @@ export const orgs = {
   me: async () => apiFetch<any>("/orgs/me"),
   update: async (data: any) => apiFetch<any>("/orgs/me", { method: "PUT", body: JSON.stringify(data) }),
   members: getTeamMembers,
+  getMembers: getTeamMembers,
   invite: inviteTeamMember,
   listApiKeys: async () => apiFetch<any[]>("/orgs/api-keys"),
   createApiKey: async (name: string) => apiFetch<any>("/orgs/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
