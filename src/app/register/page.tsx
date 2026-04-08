@@ -41,6 +41,7 @@ export default function RegisterPage() {
     try {
       const data = await auth.register({ full_name: name, email, password })
       let userData = null
+let orgData = null
       try { userData = await auth.me() } catch {}
 try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
 if (userData) {
