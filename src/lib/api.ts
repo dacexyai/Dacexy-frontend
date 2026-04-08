@@ -301,14 +301,10 @@ export async function updateSettings(settings: any): Promise<any> {
 
 export const auth = {
   login,
-  register,
+  register: async (payload: { full_name: string; email: string; password: string }) =>
+    register(payload.email, payload.password, payload.full_name),
   logout,
   me: getMe,
-  verifyEmail: async (token: string) => {
-    const res = await fetch(`${API_BASE_URL}/auth/verify-email?token=${token}`)
-    if (!res.ok) throw new Error('Verification failed')
-    return res.json()
-  },
 }
 
 export const agent = {
