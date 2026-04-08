@@ -62,7 +62,7 @@ export default function LoginPage() {
       } catch {}
 
       // Step 4: Save to store and redirect
-      login(userData, orgData, token, null)
+      login(userData, orgData, token, '')
       window.location.replace('/chat')
 
     } catch (err: any) {
