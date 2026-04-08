@@ -41,11 +41,12 @@ export default function RegisterPage() {
     try {
       const data = await auth.register({ full_name: name, email, password })
       let userData = null
-      let orgData = null
       try { userData = await auth.me() } catch {}
-      try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
-      login(userData ?? undefined, orgData ?? undefined, data.access_token, data.refresh_token ?? '')
-      window.location.replace('/onboarding')
+try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
+if (userData) {
+  login(userData, orgData, data.access_token, data.refresh_token ?? '')
+}
+window.location.replace('/onboarding')
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Email may already be in use.')
     } finally {
