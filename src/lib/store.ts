@@ -44,7 +44,8 @@ export const useAuthStore = create<AuthState>()(
 
       init: () => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-        if (token) set({ token, isAuthenticated: true })
+      if (userData) login(userData, orgData, data.access_token, data.refresh_token ?? '')
+else window.location.replace('/onboarding')
       },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
