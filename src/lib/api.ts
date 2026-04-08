@@ -315,6 +315,10 @@ export const agent = {
   list: async () => apiFetch<any[]>('/agent/runs'),
   run: runAgent,
   status: getAgentStatus,
+  create: async (goal: string, context?: string) => apiFetch<any>('/agent/run', {
+    method: 'POST',
+    body: JSON.stringify({ task: goal, context }),
+  }),
 }
 
 export const billing = {
