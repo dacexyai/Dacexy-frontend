@@ -45,7 +45,12 @@ export const useAuthStore = create<AuthState>()(
       init: () => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
       if (userData) login(userData, orgData, data.access_token, data.refresh_token ?? '')
-else window.location.replace('/onboarding')
+try { userData = await auth.me() } catch {}
+try { orgData = await fetch(`https://dacexy-backend-v7ku.onrender.com/api/v1/orgs/me`, { headers: { Authorization: `Bearer ${data.access_token}` } }).then(r => r.json()) } catch {}
+if (userData) {
+  login(userData, orgData, data.access_token, data.refresh_token ?? '')
+}
+window.location.replace('/onboarding')
       },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
