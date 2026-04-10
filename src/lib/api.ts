@@ -97,7 +97,11 @@ export async function login(email: string, password: string): Promise<LoginRespo
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Login failed" }));
-    throw new Error(error.detail || "Login failed");
+    const detail = error.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+      : typeof detail === 'string' ? detail : 'Invalid email or password';
+    throw new Error(msg);
   }
   const data: LoginResponse = await response.json();
   setToken(data.access_token);
