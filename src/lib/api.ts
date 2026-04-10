@@ -111,7 +111,7 @@ export async function register(email: string, password: string, full_name: strin
     body: JSON.stringify({ email, password, full_name }),
   });
   if (!res.ok) {
-    const error = await response.json().catch(() => ({ detail: "Login failed" }));
+    const error = await res.json().catch(() => ({ detail: "Login failed" }));
 const detail = error.detail
 const msg = Array.isArray(detail)
   ? detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
