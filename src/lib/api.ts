@@ -25,7 +25,9 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    const d = error.detail;
+    const m = Array.isArray(d) ? d.map((e:any) => e.msg || JSON.stringify(e)).join(', ') : typeof d === 'string' ? d : `HTTP ${response.status}`;
+    throw new Error(m);
   }
   return response.json();
 }
