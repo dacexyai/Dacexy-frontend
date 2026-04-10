@@ -66,8 +66,9 @@ export default function LoginPage() {
       window.location.replace('/chat')
 
     } catch (err: any) {
-      setError(err?.message || 'Invalid email or password')
-    } finally {
+  const msg = err?.message ?? err?.detail ?? String(err) ?? 'Invalid email or password'
+  setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    }finally {
       setLoading(false)
     }
   }
