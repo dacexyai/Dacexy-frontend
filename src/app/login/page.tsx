@@ -38,8 +38,11 @@ export default function LoginPage() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Login failed')
-
+if (!res.ok) {
+  const d = data.detail
+  const msg = Array.isArray(d) ? d.map((e:any) => e.msg || JSON.stringify(e)).join(', ') : typeof d === 'string' ? d : 'Login failed'
+  throw new Error(msg)
+}
       const token = data.access_token
       localStorage.setItem('access_token', token)
 
