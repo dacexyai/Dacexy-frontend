@@ -111,8 +111,12 @@ export async function register(email: string, password: string, full_name: strin
     body: JSON.stringify({ email, password, full_name }),
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: "Registration failed" }));
-    throw new Error(error.detail || "Registration failed");
+    const error = await response.json().catch(() => ({ detail: "Login failed" }));
+const detail = error.detail
+const msg = Array.isArray(detail)
+  ? detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+  : typeof detail === 'string' ? detail : 'Login failed'
+throw new Error(msg)
   }
   const data: RegisterResponse = await res.json();
   if (data.access_token) setToken(data.access_token);
