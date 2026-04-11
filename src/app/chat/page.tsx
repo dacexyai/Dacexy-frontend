@@ -17,7 +17,7 @@ function cn(...classes: (string | boolean | undefined)[]) {
 function Message({ role, content, streaming }: { role: string; content: string; streaming?: boolean }) {
   const websiteMatch = content.match(/\/websites\/([a-zA-Z0-9-]+)\/preview/)
   const previewUrl = websiteMatch
-    ? `https://dacexy-backend-v7ku.onrender.com/api/v1/websites/${websiteMatch[1]}/preview`
+    ? `${API_URL}/websites/${websiteMatch[1]}/preview`
     : null
 
   if (role === 'user') {
@@ -116,18 +116,24 @@ export default function ChatPage() {
 
   async function loadSessions() {
     try {
-      const r = await fetch(`${API_URL}/ai/sessions`, { headers: { Authorization: `Bearer ${token}` } })
+      const r = await fetch(`${API_URL}/chat/conversations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!r.ok) return
       const data = await r.json()
-      setSessions(data.sessions || [])
+      setSessions(Array.isArray(data) ? data : data.sessions || [])
     } catch {} finally { setLoadingSessions(false) }
   }
 
   async function loadMemories() {
     setLoadingMemories(true)
     try {
-      const r = await fetch(`${API_URL}/memory/`, { headers: { Authorization: `Bearer ${token}` } })
+      const r = await fetch(`${API_URL}/memory/list`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!r.ok) return
       const data = await r.json()
-      setMemories(data.memories || [])
+      setMemories(Array.isArray(data) ? data : data.memories || [])
     } catch {} finally { setLoadingMemories(false) }
   }
 
@@ -148,15 +154,15 @@ export default function ChatPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${API_URL}/upload/file`, {
+      const res = await fetch(`${API_URL}/files/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Upload failed')
-      setUploadedFile({ name: file.name, text: data.extracted_text })
-      setInput(`I have uploaded a file called "${file.name}". Here is its content:\n\n${data.extracted_text.slice(0, 3000)}\n\nPlease analyze this and answer my questions about it.`)
+      setUploadedFile({ name: file.name, text: data.extracted_text || '' })
+      setInput(`I have uploaded a file called "${file.name}". Here is its content:\n\n${(data.extracted_text || '').slice(0, 3000)}\n\nPlease analyze this.`)
     } catch (err: any) {
       alert(err.message || 'Upload failed')
     } finally {
@@ -169,9 +175,10 @@ export default function ChatPage() {
     setActiveId(id)
     setSidebarOpen(false)
     try {
-      const r = await fetch(`${API_URL}/ai/sessions/${id}/messages`, {
+      const r = await fetch(`${API_URL}/chat/conversations/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
+      if (!r.ok) return
       const data = await r.json()
       const msgs: Msg[] = (data.messages || [])
         .map((m: any, i: number) => ({ id: String(i), role: m.role, content: m.content }))
@@ -207,52 +214,93 @@ export default function ChatPage() {
         })
         const data = await res.json()
         setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: data.result || 'Agent task completed.' } : m
+          m.id === aiMsg.id ? { ...m, content: data.result || data.response || 'Agent task completed.' } : m
         ))
         setStreaming(false)
         return
       }
 
-      const res = await fetch(`${API_URL}/ai/chat`, {
+      // Try streaming first
+      const res = await fetch(`${API_URL}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          messages: allMessages.map(m => ({ role: m.role, content: m.content })),
-          session_id: activeId || undefined,
-          stream: true
+          message: msg,
+          conversation_id: activeId || undefined,
         })
       })
 
-      const reader = res.body?.getReader()
+      if (!res.ok || !res.body) {
+        // Fallback to non-streaming
+        const res2 = await fetch(`${API_URL}/chat/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            message: msg,
+            conversation_id: activeId || undefined,
+          })
+        })
+        const data = await res2.json()
+        const reply = data.response || data.content || data.message || 'No response.'
+        if (!activeId && data.conversation_id) setActiveId(data.conversation_id)
+        setMessages(prev => prev.map(m =>
+          m.id === aiMsg.id ? { ...m, content: reply } : m
+        ))
+        setStreaming(false)
+        loadSessions()
+        return
+      }
+
+      // Stream response
+      const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let full = ''
 
-      while (reader) {
+      while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value)
+        const chunk = decoder.decode(value, { stream: true })
         const lines = chunk.split('\n')
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            const raw = line.slice(6).trim()
+            if (raw === '[DONE]') continue
             try {
-              const data = JSON.parse(line.slice(6))
-              if (data.type === 'session_id' && !activeId) setActiveId(data.session_id)
-              if (data.type === 'chunk') {
+              const data = JSON.parse(raw)
+              if (data.conversation_id && !activeId) setActiveId(data.conversation_id)
+              if (data.content) {
                 full += data.content
                 setMessages(prev => prev.map(m =>
                   m.id === aiMsg.id ? { ...m, content: full } : m
                 ))
               }
-              if (data.type === 'done') {
-                setStreaming(false)
-                loadSessions()
-                const memoryKw = ['my company', 'my business', 'we are', 'i am', 'our product', 'remember']
-                if (memoryKw.some(kw => msg.toLowerCase().includes(kw))) loadMemories()
+              if (data.response) {
+                full = data.response
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMsg.id ? { ...m, content: full } : m
+                ))
               }
-            } catch {}
+            } catch {
+              // plain text chunk
+              if (raw && raw !== '[DONE]') {
+                full += raw
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMsg.id ? { ...m, content: full } : m
+                ))
+              }
+            }
           }
         }
       }
+
+      if (!full) {
+        setMessages(prev => prev.map(m =>
+          m.id === aiMsg.id ? { ...m, content: 'No response received.' } : m
+        ))
+      }
+
+      loadSessions()
+
     } catch {
       setMessages(prev => prev.map(m =>
         m.id === aiMsg.id ? { ...m, content: 'Something went wrong. Please try again.' } : m
@@ -333,7 +381,7 @@ export default function ChatPage() {
         </div>
         <div className="p-3 border-b border-black/6 bg-violet-50">
           <p className="text-xs text-violet-700">
-            The AI automatically saves context when you share info about your business and uses it in all future chats.
+            The AI automatically saves context when you share info about your business.
           </p>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -463,55 +511,34 @@ export default function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder={agentMode
                   ? "Describe a task for the AI agent..."
-                  : "Ask anything, build a website, search the web… (Shift+Enter for new line)"}
+                  : "Ask anything, build a website, search the web…"}
                 rows={1}
                 className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
               />
               <div className="flex items-center justify-between px-3 pb-3 pt-1">
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setSidebarOpen(true)}
-                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50">
-                    <MessageSquare size={13} />
-                    <span>Chats</span>
+                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload}
+                    accept=".pdf,.txt,.doc,.docx,.csv,.json" />
+                  <button onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="p-2 text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all"
+                    title="Upload file">
+                    <Paperclip size={15} />
                   </button>
-                  <button onClick={() => setAgentMode(!agentMode)}
-                    className={cn(
-                      'flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg transition-colors',
-                      agentMode
-                        ? 'text-violet-700 bg-violet-100 font-semibold'
-                        : 'text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50'
+                  <button
+                    onClick={() => setAgentMode(!agentMode)}
+                    className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                      agentMode ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100'
                     )}>
                     <Bot size={13} />
-                    <span>Agent</span>
+                    Agent
                   </button>
-                  <button onClick={() => setMemoryOpen(true)}
-                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50">
-                    <Brain size={13} />
-                    <span>Memory</span>
-                  </button>
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                    className="flex items-center gap-1.5 text-xs text-[#9E9E9E] hover:text-violet-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-violet-50 disabled:opacity-50">
-                    {uploading
-                      ? <span className="text-[10px]">Uploading...</span>
-                      : <><Paperclip size={13} /><span>Upload</span></>
-                    }
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.txt,.md,.csv,.py,.js,.ts,.tsx,.jsx"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
                 </div>
-                <button onClick={send} disabled={!input.trim() || streaming}
-                  className={cn(
-                    'w-8 h-8 rounded-xl flex items-center justify-center transition-all',
-                    input.trim() && !streaming
-                      ? 'bg-violet-700 text-white hover:bg-violet-800'
-                      : 'bg-[#E8E3D8] text-[#C0C0C0] cursor-not-allowed'
-                  )}>
-                  <Send size={14} />
+                <button
+                  onClick={send}
+                  disabled={!input.trim() || streaming}
+                  className="w-8 h-8 bg-violet-700 hover:bg-violet-800 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-all">
+                  <Send size={13} />
                 </button>
               </div>
             </div>
