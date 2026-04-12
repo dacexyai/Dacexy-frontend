@@ -2,9 +2,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText, Globe } from 'lucide-react'
-import { useAuthStore } from '@/lib/store'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
+
+const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
 interface Msg { id: string; role: string; content: string }
 interface Session { id: string; title: string; created_at: string }
@@ -44,14 +45,9 @@ function Message({ role, content, streaming }: { role: string; content: string; 
       </div>
       {previewUrl && (
         <div className="mt-4 pl-8">
-          <div className="border border-black/8 rounded-2xl overflow-hidden shadow-soft">
+          <div className="border border-black/8 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-black/6">
               <div className="flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
-                </div>
                 <Globe size={12} className="text-[#9E9E9E]" />
                 <span className="text-xs text-[#9E9E9E]">Website Preview</span>
               </div>
@@ -87,9 +83,9 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
   useEffect(() => {
+    const token = getToken()
     if (!token) { router.replace('/login'); return }
     loadSessions()
     const templatePrompt = localStorage.getItem('template_prompt')
@@ -107,11 +103,25 @@ export default function ChatPage() {
     if (memoryOpen) loadMemories()
   }, [memoryOpen])
 
+  async function authFetch(url: string, options: RequestInit = {}) {
+    const token = getToken()
+    if (!token) { router.replace('/login'); throw new Error('No token') }
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {}),
+      Authorization: `Bearer ${token}`,
+    }
+    const res = await fetch(url, { ...options, headers })
+    if (res.status === 401) {
+      localStorage.removeItem('access_token')
+      router.replace('/login')
+      throw new Error('Session expired. Please login again.')
+    }
+    return res
+  }
+
   async function loadSessions() {
     try {
-      const r = await fetch(`${API_URL}/ai/sessions`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const r = await authFetch(`${API_URL}/ai/sessions`)
       if (!r.ok) return
       const data = await r.json()
       setSessions(Array.isArray(data) ? data : data.sessions || [])
@@ -121,9 +131,7 @@ export default function ChatPage() {
   async function loadMemories() {
     setLoadingMemories(true)
     try {
-      const r = await fetch(`${API_URL}/memory/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const r = await authFetch(`${API_URL}/memory/`)
       if (!r.ok) return
       const data = await r.json()
       setMemories(Array.isArray(data) ? data : data.memories || [])
@@ -132,10 +140,7 @@ export default function ChatPage() {
 
   async function deleteMemory(id: string) {
     try {
-      await fetch(`${API_URL}/memory/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      await authFetch(`${API_URL}/memory/${id}`, { method: 'DELETE' })
       setMemories(prev => prev.filter(m => m.id !== id))
     } catch {}
   }
@@ -147,11 +152,7 @@ export default function ChatPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${API_URL}/upload/file`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      })
+      const res = await authFetch(`${API_URL}/upload/file`, { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Upload failed')
       setUploadedFile({ name: file.name, text: data.extracted_text || '' })
@@ -168,9 +169,7 @@ export default function ChatPage() {
     setActiveId(id)
     setSidebarOpen(false)
     try {
-      const r = await fetch(`${API_URL}/ai/sessions/${id}/messages`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const r = await authFetch(`${API_URL}/ai/sessions/${id}/messages`)
       if (!r.ok) return
       const data = await r.json()
       const msgs: Msg[] = (data.messages || [])
@@ -189,6 +188,10 @@ export default function ChatPage() {
   const send = useCallback(async () => {
     const msg = input.trim()
     if (!msg || streaming) return
+
+    const token = getToken()
+    if (!token) { router.replace('/login'); return }
+
     setInput('')
     setUploadedFile(null)
     setStreaming(true)
@@ -200,9 +203,9 @@ export default function ChatPage() {
 
     try {
       if (agentMode) {
-        const res = await fetch(`${API_URL}/agent/run`, {
+        const res = await authFetch(`${API_URL}/agent/run`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ task: msg })
         })
         const data = await res.json()
@@ -213,10 +216,9 @@ export default function ChatPage() {
         return
       }
 
-      // Try streaming
-      const res = await fetch(`${API_URL}/ai/chat`, {
+      const res = await authFetch(`${API_URL}/ai/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: allMessages.map(m => ({ role: m.role, content: m.content })),
           session_id: activeId || undefined,
@@ -227,7 +229,8 @@ export default function ChatPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         const d = err.detail
-        const errMsg = Array.isArray(d) ? d.map((e: any) => e.msg || JSON.stringify(e)).join(', ')
+        const errMsg = Array.isArray(d)
+          ? d.map((e: any) => e.msg || JSON.stringify(e)).join(', ')
           : typeof d === 'string' ? d : `Error ${res.status}`
         setMessages(prev => prev.map(m =>
           m.id === aiMsg.id ? { ...m, content: errMsg } : m
@@ -237,8 +240,6 @@ export default function ChatPage() {
       }
 
       const contentType = res.headers.get('content-type') || ''
-
-      // Non-streaming JSON response
       if (contentType.includes('application/json')) {
         const data = await res.json()
         const reply = data.response || data.content || data.message || data.text || JSON.stringify(data)
@@ -251,7 +252,6 @@ export default function ChatPage() {
         return
       }
 
-      // Streaming response
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       let full = ''
@@ -268,37 +268,26 @@ export default function ChatPage() {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const raw = line.slice(6).trim()
-            if (!raw || raw === '[DONE]') continue
-            try {
-              const data = JSON.parse(raw)
-              if (data.session_id && !activeId) setActiveId(data.session_id)
-              if (data.type === 'chunk' && data.content) {
-                full += data.content
-              } else if (data.type === 'done') {
-                // done
-              } else if (data.content) {
-                full += data.content
-              } else if (data.response) {
-                full = data.response
-              } else if (data.text) {
-                full += data.text
-              }
-              if (full) {
-                setMessages(prev => prev.map(m =>
-                  m.id === aiMsg.id ? { ...m, content: full } : m
-                ))
-              }
-            } catch {
-              if (raw && raw !== '[DONE]') {
-                full += raw
-                setMessages(prev => prev.map(m =>
-                  m.id === aiMsg.id ? { ...m, content: full } : m
-                ))
-              }
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6).trim()
+          if (!raw || raw === '[DONE]') continue
+          try {
+            const data = JSON.parse(raw)
+            if (data.session_id && !activeId) setActiveId(data.session_id)
+            if (data.type === 'chunk' && data.content) full += data.content
+            else if (data.content) full += data.content
+            else if (data.response) full = data.response
+            else if (data.text) full += data.text
+            if (full) setMessages(prev => prev.map(m =>
+              m.id === aiMsg.id ? { ...m, content: full } : m
+            ))
+          } catch {
+            if (raw && raw !== '[DONE]') {
+              full += raw
+              setMessages(prev => prev.map(m =>
+                m.id === aiMsg.id ? { ...m, content: full } : m
+              ))
             }
           }
         }
@@ -314,12 +303,14 @@ export default function ChatPage() {
 
     } catch (err: any) {
       setMessages(prev => prev.map(m =>
-        m.id === aiMsg.id ? { ...m, content: `Error: ${err?.message || 'Something went wrong'}` } : m
+        m.id === aiMsg.id
+          ? { ...m, content: err?.message || 'Something went wrong. Please try again.' }
+          : m
       ))
     } finally {
       setStreaming(false)
     }
-  }, [input, streaming, activeId, messages, token, agentMode])
+  }, [input, streaming, activeId, messages, agentMode])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -451,7 +442,7 @@ export default function ChatPage() {
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center max-w-lg px-8">
-                <div className="w-14 h-14 bg-violet-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-glow">
+                <div className="w-14 h-14 bg-violet-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Sparkles size={24} className="text-white" />
                 </div>
                 <h2 className="font-serif text-3xl font-semibold text-[#0F0F0F] mb-3">How can I help you?</h2>
@@ -467,7 +458,7 @@ export default function ChatPage() {
                     'Build me a landing page for my SaaS',
                   ].map(s => (
                     <button key={s} onClick={() => { setInput(s); inputRef.current?.focus() }}
-                      className="text-left text-xs text-[#5C5C5C] bg-white hover:bg-gray-50 border border-black/8 rounded-xl px-4 py-3 transition-all shadow-soft leading-relaxed">
+                      className="text-left text-xs text-[#5C5C5C] bg-white hover:bg-gray-50 border border-black/8 rounded-xl px-4 py-3 transition-all leading-relaxed">
                       {s}
                     </button>
                   ))}
@@ -488,7 +479,7 @@ export default function ChatPage() {
         <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
             <div className={cn(
-              'border rounded-2xl transition-all shadow-soft',
+              'border rounded-2xl transition-all',
               agentMode
                 ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400'
                 : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
@@ -516,8 +507,7 @@ export default function ChatPage() {
                   <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload}
                     accept=".pdf,.txt,.doc,.docx,.csv,.json" />
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                    className="p-2 text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all"
-                    title="Upload file">
+                    className="p-2 text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all">
                     <Paperclip size={15} />
                   </button>
                   <button onClick={() => setAgentMode(!agentMode)}
