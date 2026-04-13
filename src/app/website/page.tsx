@@ -39,10 +39,21 @@ export default function WebsitePage() {
   const [loadingCode, setLoadingCode] = useState(false)
   const [error, setError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const generateRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!getToken()) { router.replace('/login'); return }
     loadWebsites()
+
+    // Auto-trigger from chat redirect
+    const savedPrompt = localStorage.getItem('website_prompt')
+    if (savedPrompt) {
+      setPrompt(savedPrompt)
+      localStorage.removeItem('website_prompt')
+      setTimeout(() => {
+        if (generateRef.current) generateRef.current()
+      }, 300)
+    }
   }, [])
 
   async function authFetch(url: string, options: RequestInit = {}) {
@@ -78,21 +89,23 @@ export default function WebsitePage() {
   }
 
   async function generate() {
-    if (!prompt.trim() || generating) return
+    const currentPrompt = prompt.trim()
+    if (!currentPrompt || generating) return
     setGenerating(true)
     setError('')
     setActiveWebsite(null)
+    setHtmlCode('')
     try {
       const res = await authFetch(`${API_URL}/websites/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim() })
+        body: JSON.stringify({ prompt: currentPrompt })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Generation failed')
       const newSite: Website = {
         id: data.id,
-        prompt: prompt.trim(),
+        prompt: currentPrompt,
         status: data.status,
         created_at: new Date().toISOString(),
         preview_url: `${API_URL}/websites/${data.id}/preview`
@@ -105,6 +118,11 @@ export default function WebsitePage() {
       setError(err.message || 'Generation failed. Please try again.')
     } finally { setGenerating(false) }
   }
+
+  // Keep ref in sync so useEffect can call it
+  useEffect(() => {
+    generateRef.current = generate
+  }, [prompt, generating])
 
   function selectWebsite(site: Website) {
     setActiveWebsite({ ...site, preview_url: `${API_URL}/websites/${site.id}/preview` })
@@ -137,7 +155,7 @@ export default function WebsitePage() {
   return (
     <div className="flex h-screen bg-white overflow-hidden">
 
-      {/* Left sidebar — history */}
+      {/* Left sidebar */}
       <div className="w-60 border-r border-black/6 flex flex-col bg-[#FAFAF9] shrink-0">
         <div className="p-4 border-b border-black/6">
           <div className="flex items-center gap-2 mb-1">
@@ -149,11 +167,16 @@ export default function WebsitePage() {
           <p className="text-[10px] text-[#9E9E9E] ml-8">Website Builder</p>
         </div>
 
-        <div className="p-3">
+        <div className="p-3 space-y-2">
           <button
             onClick={() => { setActiveWebsite(null); setHtmlCode(''); setPrompt('') }}
             className="w-full flex items-center gap-2 bg-violet-700 hover:bg-violet-800 text-white text-xs font-semibold px-3 py-2.5 rounded-xl transition-all">
             <Plus size={13} /> New Website
+          </button>
+          <button
+            onClick={() => router.push('/chat')}
+            className="w-full flex items-center gap-2 bg-[#F2EFE8] hover:bg-gray-200 text-[#5C5C5C] text-xs font-semibold px-3 py-2.5 rounded-xl transition-all">
+            ← Back to Chat
           </button>
         </div>
 
@@ -171,13 +194,16 @@ export default function WebsitePage() {
           ) : websites.map(site => (
             <button key={site.id} onClick={() => selectWebsite(site)}
               className={cn(
-                'w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all group',
-                activeWebsite?.id === site.id ? 'bg-violet-50 border border-violet-200' : 'hover:bg-white hover:border hover:border-black/6 border border-transparent'
+                'w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all border',
+                activeWebsite?.id === site.id
+                  ? 'bg-violet-50 border-violet-200'
+                  : 'hover:bg-white hover:border-black/6 border-transparent'
               )}>
               <div className="flex items-center gap-2 mb-1">
                 <Globe size={11} className={activeWebsite?.id === site.id ? 'text-violet-600' : 'text-[#B0B0B0]'} />
                 <span className={cn('text-[10px] font-semibold uppercase tracking-wide',
-                  site.status === 'completed' ? 'text-emerald-600' : site.status === 'failed' ? 'text-red-500' : 'text-amber-500')}>
+                  site.status === 'completed' ? 'text-emerald-600'
+                  : site.status === 'failed' ? 'text-red-500' : 'text-amber-500')}>
                   {site.status}
                 </span>
               </div>
@@ -192,13 +218,12 @@ export default function WebsitePage() {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-
         {activeWebsite ? (
           <>
             {/* Toolbar */}
             <div className="flex items-center justify-between px-4 h-12 border-b border-black/6 bg-white shrink-0">
               <div className="flex items-center gap-3">
-                <button onClick={() => setActiveWebsite(null)}
+                <button onClick={() => { setActiveWebsite(null); setHtmlCode('') }}
                   className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                   <ChevronLeft size={15} className="text-[#5C5C5C]" />
                 </button>
@@ -252,15 +277,14 @@ export default function WebsitePage() {
               )}
             </div>
 
-            {/* Bottom prompt bar for iteration */}
+            {/* Iteration prompt bar */}
             <div className="border-t border-black/6 bg-white p-3">
               <div className="flex items-end gap-2 bg-[#F2EFE8] border border-black/8 focus-within:border-violet-400 focus-within:bg-white rounded-2xl px-4 py-3 transition-all">
                 <textarea
-                  ref={textareaRef}
                   value={prompt}
                   onChange={handleInput}
                   onKeyDown={handleKeyDown}
-                  placeholder="Describe changes… e.g. make the hero section blue"
+                  placeholder="Describe changes… e.g. make the hero section blue, add a contact form"
                   rows={1}
                   className="flex-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-32"
                 />
@@ -272,7 +296,7 @@ export default function WebsitePage() {
             </div>
           </>
         ) : (
-          /* Empty state — prompt to generate */
+          /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center px-6">
             <div className="w-full max-w-2xl">
               <div className="text-center mb-10">
@@ -291,6 +315,14 @@ export default function WebsitePage() {
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
                   <X size={13} className="text-red-500 shrink-0" />
                   <p className="text-xs text-red-600">{error}</p>
+                </div>
+              )}
+
+              {generating && (
+                <div className="bg-violet-50 border border-violet-200 rounded-2xl p-6 mb-6 text-center">
+                  <Loader2 size={24} className="animate-spin text-violet-600 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-violet-700">Building your website…</p>
+                  <p className="text-xs text-violet-500 mt-1">This usually takes 20–40 seconds</p>
                 </div>
               )}
 
@@ -314,14 +346,6 @@ export default function WebsitePage() {
                   </button>
                 </div>
               </div>
-
-              {generating && (
-                <div className="bg-violet-50 border border-violet-200 rounded-2xl p-6 mb-6 text-center">
-                  <Loader2 size={24} className="animate-spin text-violet-600 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-violet-700">Building your website…</p>
-                  <p className="text-xs text-violet-500 mt-1">This usually takes 20–40 seconds</p>
-                </div>
-              )}
 
               <div>
                 <p className="text-[9px] font-extrabold text-[#B0B0B0] uppercase tracking-widest mb-3">Try these</p>
