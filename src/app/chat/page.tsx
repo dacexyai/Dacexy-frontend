@@ -192,6 +192,20 @@ export default function ChatPage() {
     const token = getToken()
     if (!token) { router.replace('/login'); return }
 
+    // Auto-redirect to website builder
+    const websiteKeywords = ['build', 'make', 'create', 'generate', 'design']
+    const siteKeywords = ['website', 'landing page', 'webpage', 'web app', 'homepage', 'site']
+    const isWebsite = websiteKeywords.some(w => msg.toLowerCase().includes(w)) &&
+                      siteKeywords.some(w => msg.toLowerCase().includes(w))
+    if (isWebsite) {
+      localStorage.setItem('website_prompt', msg)
+      router.push('/website')
+      return
+    }
+
+    const token = getToken()
+    if (!token) { router.replace('/login'); return }
+
     setInput('')
     setUploadedFile(null)
     setStreaming(true)
