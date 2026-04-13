@@ -203,9 +203,6 @@ export default function ChatPage() {
       return
     }
 
-    const token = getToken()
-    if (!token) { router.replace('/login'); return }
-
     setInput('')
     setUploadedFile(null)
     setStreaming(true)
