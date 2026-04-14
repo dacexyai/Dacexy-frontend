@@ -16,10 +16,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (isAuthenticated) router.replace('/chat')
-  }, [isAuthenticated])
-
+  
+useEffect(() => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+  if (isAuthenticated && token) router.replace('/chat')
+}, [isAuthenticated])
   async function handleLogin(e?: React.FormEvent) {
     e?.preventDefault()
     if (!email || !password) return
