@@ -85,9 +85,14 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const token = getToken()
-    if (!token) { router.replace('/login'); return }
-    loadSessions()
+  const token = getToken()
+  if (!token) {
+    // Clear store to prevent loop
+    localStorage.removeItem('dacexy_auth')
+    router.replace('/login')
+    return
+  }
+  loadSessions()
     const templatePrompt = localStorage.getItem('template_prompt')
     if (templatePrompt) {
       setInput(templatePrompt)
