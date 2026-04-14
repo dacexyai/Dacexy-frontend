@@ -43,9 +43,13 @@ export const useAuthStore = create<AuthState>()(
       token: null,
 
       init: () => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-        if (token) set({ token, isAuthenticated: true })
-      },
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+  if (token) {
+    set({ token, isAuthenticated: true })
+  } else {
+    set({ token: null, isAuthenticated: false, user: null, org: null })
+  }
+},
 
       setUser: (user) => set({ user, isAuthenticated: true }),
       setOrg: (org) => set({ org }),
