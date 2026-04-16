@@ -1,33 +1,38 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText, Globe } from 'lucide-react'
+import { Send, Plus, MessageSquare, Sparkles, Menu, X, Bot, Brain, Trash2, Paperclip, FileText, Globe, Image, Video, Loader2 } from 'lucide-react'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
-
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-
-interface Msg { id: string; role: string; content: string }
-interface Session { id: string; title: string; created_at: string }
-interface Memory { id: string; content: string; created_at: string }
 
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ')
 }
 
-function Message({ role, content, streaming }: { role: string; content: string; streaming?: boolean }) {
-  const websiteMatch = content.match(/\/websites\/([a-zA-Z0-9-]+)\/preview/)
-  const previewUrl = websiteMatch ? `${API_URL}/websites/${websiteMatch[1]}/preview` : null
+interface Msg {
+  id: string
+  role: string
+  content: string
+  type?: 'text' | 'image' | 'video'
+  loading?: boolean
+}
+interface Session { id: string; title: string; created_at: string }
+interface Memory { id: string; content: string; created_at: string }
 
-  if (role === 'user') {
+function Message({ msg, streaming }: { msg: Msg; streaming?: boolean }) {
+  if (msg.role === 'user') {
     return (
       <div className="flex justify-end px-4 py-2">
         <div className="max-w-[70%] bg-[#0F0F0F] text-white text-sm leading-relaxed px-4 py-3 rounded-2xl rounded-tr-sm">
-          {content}
+          {msg.content}
         </div>
       </div>
     )
   }
+
+  const websiteMatch = msg.content.match(/\/websites\/([a-zA-Z0-9-]+)\/preview/)
+  const previewUrl = websiteMatch ? `${API_URL}/websites/${websiteMatch[1]}/preview` : null
 
   return (
     <div className="px-4 py-5 border-b border-black/4 last:border-0">
@@ -37,29 +42,85 @@ function Message({ role, content, streaming }: { role: string; content: string; 
         </div>
         <span className="text-xs font-semibold text-violet-700">Dacexy AI</span>
       </div>
-      <div className={cn(
-        'text-sm text-[#0F0F0F] leading-7 pl-8 whitespace-pre-wrap',
-        streaming && 'after:content-["▋"] after:animate-pulse'
-      )}>
-        {content || (streaming ? '' : 'No response received.')}
-      </div>
-      {previewUrl && (
-        <div className="mt-4 pl-8">
-          <div className="border border-black/8 rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-black/6">
-              <div className="flex items-center gap-2">
-                <Globe size={12} className="text-[#9E9E9E]" />
-                <span className="text-xs text-[#9E9E9E]">Website Preview</span>
+
+      {/* Image result */}
+      {msg.type === 'image' && (
+        <div className="pl-8">
+          {msg.loading ? (
+            <div className="flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-4">
+              <Loader2 size={16} className="animate-spin text-violet-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-violet-700">Generating image…</p>
+                <p className="text-xs text-violet-400 mt-0.5">This takes 15–30 seconds</p>
               </div>
-              <a href={previewUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-violet-600 hover:text-violet-800 font-semibold">
-                Open full screen ↗
-              </a>
             </div>
-            <iframe src={previewUrl} className="w-full h-72 border-0" title="Website Preview"
-              sandbox="allow-scripts allow-same-origin" />
-          </div>
+          ) : msg.content.startsWith('http') ? (
+            <div className="rounded-2xl overflow-hidden border border-black/8 shadow-sm max-w-md">
+              <img src={msg.content} alt="Generated" className="w-full h-auto" />
+              <div className="flex items-center justify-between px-3 py-2 bg-[#F9F7F2]">
+                <span className="text-xs text-[#9E9E9E]">AI Generated Image</span>
+                <a href={msg.content} download target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-violet-600 font-semibold hover:text-violet-800">Download ↓</a>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-red-500">{msg.content}</p>
+          )}
         </div>
+      )}
+
+      {/* Video result */}
+      {msg.type === 'video' && (
+        <div className="pl-8">
+          {msg.loading ? (
+            <div className="flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-4">
+              <Loader2 size={16} className="animate-spin text-violet-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-violet-700">Generating video…</p>
+                <p className="text-xs text-violet-400 mt-0.5">This takes 30–60 seconds</p>
+              </div>
+            </div>
+          ) : msg.content.startsWith('http') ? (
+            <div className="rounded-2xl overflow-hidden border border-black/8 shadow-sm max-w-md">
+              <video src={msg.content} controls className="w-full h-auto" />
+              <div className="flex items-center justify-between px-3 py-2 bg-[#F9F7F2]">
+                <span className="text-xs text-[#9E9E9E]">AI Generated Video</span>
+                <a href={msg.content} download target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-violet-600 font-semibold hover:text-violet-800">Download ↓</a>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-red-500">{msg.content}</p>
+          )}
+        </div>
+      )}
+
+      {/* Text result */}
+      {(!msg.type || msg.type === 'text') && (
+        <>
+          <div className={cn(
+            'text-sm text-[#0F0F0F] leading-7 pl-8 whitespace-pre-wrap',
+            streaming && 'after:content-["▋"] after:animate-pulse'
+          )}>
+            {msg.content || (streaming ? '' : 'No response received.')}
+          </div>
+          {previewUrl && (
+            <div className="mt-4 pl-8">
+              <div className="border border-black/8 rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-black/6">
+                  <div className="flex items-center gap-2">
+                    <Globe size={12} className="text-[#9E9E9E]" />
+                    <span className="text-xs text-[#9E9E9E]">Website Preview</span>
+                  </div>
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-violet-600 hover:text-violet-800 font-semibold">Open ↗</a>
+                </div>
+                <iframe src={previewUrl} className="w-full h-72 border-0" title="Website Preview"
+                  sandbox="allow-scripts allow-same-origin" />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -85,14 +146,13 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-  const token = getToken()
-  if (!token) {
-    // Clear store to prevent loop
-    localStorage.removeItem('dacexy_auth')
-    router.replace('/login')
-    return
-  }
-  loadSessions()
+    const token = getToken()
+    if (!token) {
+      localStorage.removeItem('dacexy_auth')
+      router.replace('/login')
+      return
+    }
+    loadSessions()
     const templatePrompt = localStorage.getItem('template_prompt')
     if (templatePrompt) {
       setInput(templatePrompt)
@@ -100,13 +160,8 @@ export default function ChatPage() {
     }
   }, [])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  useEffect(() => {
-    if (memoryOpen) loadMemories()
-  }, [memoryOpen])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { if (memoryOpen) loadMemories() }, [memoryOpen])
 
   async function authFetch(url: string, options: RequestInit = {}) {
     const token = getToken()
@@ -118,8 +173,9 @@ export default function ChatPage() {
     const res = await fetch(url, { ...options, headers })
     if (res.status === 401) {
       localStorage.removeItem('access_token')
+      localStorage.removeItem('dacexy_auth')
       router.replace('/login')
-      throw new Error('Session expired. Please login again.')
+      throw new Error('Session expired')
     }
     return res
   }
@@ -178,17 +234,13 @@ export default function ChatPage() {
       if (!r.ok) return
       const data = await r.json()
       const msgs: Msg[] = (data.messages || [])
-        .map((m: any, i: number) => ({ id: String(i), role: m.role, content: m.content }))
+        .map((m: any, i: number) => ({ id: String(i), role: m.role, content: m.content, type: 'text' as const }))
         .filter((m: Msg) => m.role !== 'system')
       setMessages(msgs)
     } catch {}
   }
 
-  function newSession() {
-    setActiveId(null)
-    setMessages([])
-    setSidebarOpen(false)
-  }
+  function newSession() { setActiveId(null); setMessages([]); setSidebarOpen(false) }
 
   const send = useCallback(async () => {
     const msg = input.trim()
@@ -197,23 +249,67 @@ export default function ChatPage() {
     const token = getToken()
     if (!token) { router.replace('/login'); return }
 
-    // Auto-redirect to website builder
-    const websiteKeywords = ['build', 'make', 'create', 'generate', 'design']
-    const siteKeywords = ['website', 'landing page', 'webpage', 'web app', 'homepage', 'site']
-    const isWebsite = websiteKeywords.some(w => msg.toLowerCase().includes(w)) &&
-                      siteKeywords.some(w => msg.toLowerCase().includes(w))
-    if (isWebsite) {
+    // Website redirect
+    const websiteKw = ['build', 'make', 'create', 'generate', 'design']
+    const siteKw = ['website', 'landing page', 'webpage', 'web app', 'homepage', 'site']
+    if (websiteKw.some(w => msg.toLowerCase().includes(w)) && siteKw.some(w => msg.toLowerCase().includes(w))) {
       localStorage.setItem('website_prompt', msg)
       router.push('/website')
       return
     }
 
+    // Image generation
+    const imageKw = ['create image', 'generate image', 'make image', 'draw ', 'create a picture', 'generate a picture', 'make a picture', 'create photo', 'generate photo', 'make photo']
+    if (imageKw.some(w => msg.toLowerCase().includes(w))) {
+      setInput('')
+      setStreaming(true)
+      const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg, type: 'text' }
+      const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', type: 'image', loading: true }
+      setMessages(prev => [...prev, userMsg, aiMsg])
+      try {
+        const res = await authFetch(`${API_URL}/media/image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: msg })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Image generation failed')
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.url, loading: false } : m))
+      } catch (err: any) {
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: err.message || 'Failed', loading: false, type: 'text' } : m))
+      } finally { setStreaming(false) }
+      return
+    }
+
+    // Video generation
+    const videoKw = ['create video', 'generate video', 'make video', 'create a video', 'generate a video', 'make a video']
+    if (videoKw.some(w => msg.toLowerCase().includes(w))) {
+      setInput('')
+      setStreaming(true)
+      const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg, type: 'text' }
+      const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', type: 'video', loading: true }
+      setMessages(prev => [...prev, userMsg, aiMsg])
+      try {
+        const res = await authFetch(`${API_URL}/media/video`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: msg })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Video generation failed')
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.url, loading: false } : m))
+      } catch (err: any) {
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: err.message || 'Failed', loading: false, type: 'text' } : m))
+      } finally { setStreaming(false) }
+      return
+    }
+
+    // Normal chat
     setInput('')
     setUploadedFile(null)
     setStreaming(true)
-
-    const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg }
-    const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '' }
+    const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg, type: 'text' }
+    const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', type: 'text' }
     const allMessages = [...messages, userMsg]
     setMessages([...allMessages, aiMsg])
 
@@ -225,9 +321,7 @@ export default function ChatPage() {
           body: JSON.stringify({ task: msg })
         })
         const data = await res.json()
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: data.result || data.response || 'Agent task completed.' } : m
-        ))
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.result || data.response || 'Agent task completed.' } : m))
         setStreaming(false)
         return
       }
@@ -245,12 +339,8 @@ export default function ChatPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         const d = err.detail
-        const errMsg = Array.isArray(d)
-          ? d.map((e: any) => e.msg || JSON.stringify(e)).join(', ')
-          : typeof d === 'string' ? d : `Error ${res.status}`
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: errMsg } : m
-        ))
+        const errMsg = Array.isArray(d) ? d.map((e: any) => e.msg || JSON.stringify(e)).join(', ') : typeof d === 'string' ? d : `Error ${res.status}`
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: errMsg } : m))
         setStreaming(false)
         return
       }
@@ -260,9 +350,7 @@ export default function ChatPage() {
         const data = await res.json()
         const reply = data.response || data.content || data.message || data.text || JSON.stringify(data)
         if (data.session_id && !activeId) setActiveId(data.session_id)
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: reply } : m
-        ))
+        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: reply } : m))
         setStreaming(false)
         loadSessions()
         return
@@ -271,14 +359,7 @@ export default function ChatPage() {
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       let full = ''
-
-      if (!reader) {
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: 'No response received.' } : m
-        ))
-        setStreaming(false)
-        return
-      }
+      if (!reader) { setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: 'No response.' } : m)); setStreaming(false); return }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -295,37 +376,19 @@ export default function ChatPage() {
             else if (data.content) full += data.content
             else if (data.response) full = data.response
             else if (data.text) full += data.text
-            if (full) setMessages(prev => prev.map(m =>
-              m.id === aiMsg.id ? { ...m, content: full } : m
-            ))
+            if (full) setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m))
           } catch {
-            if (raw && raw !== '[DONE]') {
-              full += raw
-              setMessages(prev => prev.map(m =>
-                m.id === aiMsg.id ? { ...m, content: full } : m
-              ))
-            }
+            if (raw && raw !== '[DONE]') { full += raw; setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: full } : m)) }
           }
         }
       }
 
-      if (!full) {
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsg.id ? { ...m, content: 'No response received.' } : m
-        ))
-      }
-
+      if (!full) setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: 'No response received.' } : m))
       loadSessions()
 
     } catch (err: any) {
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsg.id
-          ? { ...m, content: err?.message || 'Something went wrong. Please try again.' }
-          : m
-      ))
-    } finally {
-      setStreaming(false)
-    }
+      setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: err?.message || 'Something went wrong.' } : m))
+    } finally { setStreaming(false) }
   }, [input, streaming, activeId, messages, agentMode])
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -345,36 +408,25 @@ export default function ChatPage() {
       {memoryOpen && <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setMemoryOpen(false)} />}
 
       {/* Sidebar */}
-      <div className={cn(
-        'fixed left-0 top-0 h-full z-40 flex flex-col w-64 bg-white border-r border-black/6 transition-transform duration-300',
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      )}>
+      <div className={cn('fixed left-0 top-0 h-full z-40 flex flex-col w-64 bg-white border-r border-black/6 transition-transform duration-300', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="flex items-center justify-between p-3 border-b border-black/6">
-          <button onClick={newSession}
-            className="flex-1 flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 font-semibold text-sm px-3.5 py-2.5 rounded-xl transition-all">
+          <button onClick={newSession} className="flex-1 flex items-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 font-semibold text-sm px-3.5 py-2.5 rounded-xl transition-all">
             <Plus size={15} /> New chat
           </button>
-          <button onClick={() => setSidebarOpen(false)} className="ml-2 p-2 hover:bg-gray-100 rounded-lg">
-            <X size={16} />
-          </button>
+          <button onClick={() => setSidebarOpen(false)} className="ml-2 p-2 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
-          {loadingSessions ? (
-            <div className="px-3 py-4 text-center text-xs text-[#B0B0B0]">Loading...</div>
-          ) : sessions.length === 0 ? (
+          {loadingSessions ? <div className="px-3 py-4 text-center text-xs text-[#B0B0B0]">Loading...</div>
+          : sessions.length === 0 ? (
             <div className="px-3 py-8 text-center">
               <MessageSquare size={24} className="mx-auto text-[#D0D0D0] mb-2" />
               <p className="text-xs text-[#B0B0B0]">No conversations yet</p>
             </div>
           ) : sessions.map(s => (
             <div key={s.id} onClick={() => loadSession(s.id)}
-              className={cn(
-                'flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all mx-1 rounded-xl',
-                activeId === s.id ? 'bg-violet-50' : 'hover:bg-gray-50'
-              )}>
+              className={cn('flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-all mx-1 rounded-xl', activeId === s.id ? 'bg-violet-50' : 'hover:bg-gray-50')}>
               <MessageSquare size={13} className={activeId === s.id ? 'text-violet-600' : 'text-[#B0B0B0]'} />
-              <p className={cn('text-xs font-medium truncate flex-1',
-                activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
+              <p className={cn('text-xs font-medium truncate flex-1', activeId === s.id ? 'text-violet-700' : 'text-[#5C5C5C]')}>
                 {s.title || 'New conversation'}
               </p>
             </div>
@@ -383,38 +435,30 @@ export default function ChatPage() {
       </div>
 
       {/* Memory panel */}
-      <div className={cn(
-        'fixed right-0 top-0 h-full z-40 flex flex-col w-72 bg-white border-l border-black/6 transition-transform duration-300',
-        memoryOpen ? 'translate-x-0' : 'translate-x-full'
-      )}>
+      <div className={cn('fixed right-0 top-0 h-full z-40 flex flex-col w-72 bg-white border-l border-black/6 transition-transform duration-300', memoryOpen ? 'translate-x-0' : 'translate-x-full')}>
         <div className="flex items-center justify-between p-4 border-b border-black/6">
           <div className="flex items-center gap-2">
             <Brain size={16} className="text-violet-600" />
             <h3 className="font-semibold text-sm text-[#0F0F0F]">AI Memory</h3>
           </div>
-          <button onClick={() => setMemoryOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-            <X size={16} />
-          </button>
+          <button onClick={() => setMemoryOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
         </div>
         <div className="p-3 border-b border-black/6 bg-violet-50">
           <p className="text-xs text-violet-700">The AI saves context from your business info automatically.</p>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {loadingMemories ? (
-            <p className="text-xs text-center text-[#B0B0B0] py-4">Loading...</p>
-          ) : memories.length === 0 ? (
+          {loadingMemories ? <p className="text-xs text-center text-[#B0B0B0] py-4">Loading...</p>
+          : memories.length === 0 ? (
             <div className="text-center py-8">
               <Brain size={24} className="mx-auto text-[#D0D0D0] mb-2" />
               <p className="text-xs text-[#B0B0B0]">No memories yet</p>
-              <p className="text-xs text-[#C0C0C0] mt-1">Tell the AI about your business</p>
             </div>
           ) : memories.map(m => (
             <div key={m.id} className="bg-[#F9F7F2] border border-black/6 rounded-xl p-3 group">
               <p className="text-xs text-[#0F0F0F] leading-relaxed">{m.content}</p>
               <div className="flex items-center justify-between mt-2">
                 <p className="text-[10px] text-[#B0B0B0]">{new Date(m.created_at).toLocaleDateString()}</p>
-                <button onClick={() => deleteMemory(m.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all">
+                <button onClick={() => deleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all">
                   <Trash2 size={11} />
                 </button>
               </div>
@@ -430,8 +474,7 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center justify-between gap-3 px-4 h-14 border-b border-black/6 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Menu size={18} className="text-[#5C5C5C]" />
             </button>
             <div className="flex items-center gap-2">
@@ -440,17 +483,11 @@ export default function ChatPage() {
               </div>
               <span className="font-serif font-semibold text-[#0F0F0F]">Dacexy AI</span>
             </div>
-            {agentMode && (
-              <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
-                Agent Mode
-              </span>
-            )}
+            {agentMode && <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Agent Mode</span>}
           </div>
           <button onClick={() => setMemoryOpen(!memoryOpen)}
-            className={cn('flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors',
-              memoryOpen ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100')}>
-            <Brain size={14} />
-            <span>Memory</span>
+            className={cn('flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors', memoryOpen ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100')}>
+            <Brain size={14} /><span>Memory</span>
           </button>
         </div>
 
@@ -463,13 +500,12 @@ export default function ChatPage() {
                 </div>
                 <h2 className="font-serif text-3xl font-semibold text-[#0F0F0F] mb-3">How can I help you?</h2>
                 <p className="text-sm text-[#9E9E9E] leading-relaxed mb-8">
-                  I&apos;m Dacexy AI, powered by DeepSeek. I can analyze data, write code,
-                  search the web, build websites, and execute complex tasks autonomously.
+                  I&apos;m Dacexy AI. I can chat, write code, generate images, create videos, build websites, and execute tasks.
                 </p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    'Analyze this dataset for trends',
                     'Write a Python script to automate my workflow',
+                    'Generate image of a futuristic city at night',
                     'Search for latest AI news today',
                     'Build me a landing page for my SaaS',
                   ].map(s => (
@@ -484,7 +520,7 @@ export default function ChatPage() {
           ) : (
             <div className="max-w-3xl mx-auto pb-8">
               {messages.map(m => (
-                <Message key={m.id} role={m.role} content={m.content}
+                <Message key={m.id} msg={m}
                   streaming={streaming && m.role === 'assistant' && m === messages[messages.length - 1]} />
               ))}
               <div ref={bottomRef} />
@@ -494,42 +530,35 @@ export default function ChatPage() {
 
         <div className="border-t border-black/6 bg-white p-4">
           <div className="max-w-3xl mx-auto">
-            <div className={cn(
-              'border rounded-2xl transition-all',
-              agentMode
-                ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400'
-                : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white'
-            )}>
+            <div className={cn('border rounded-2xl transition-all', agentMode ? 'bg-violet-50 border-violet-200 focus-within:border-violet-400' : 'bg-[#F2EFE8] border-black/8 focus-within:border-violet-400 focus-within:bg-white')}>
               {uploadedFile && (
                 <div className="flex items-center gap-2 px-4 pt-3 pb-1">
                   <FileText size={13} className="text-violet-600" />
                   <span className="text-xs text-violet-700 font-medium truncate flex-1">{uploadedFile.name}</span>
-                  <button onClick={() => { setUploadedFile(null); setInput('') }} className="text-[#B0B0B0] hover:text-red-500">
-                    <X size={12} />
-                  </button>
+                  <button onClick={() => { setUploadedFile(null); setInput('') }} className="text-[#B0B0B0] hover:text-red-500"><X size={12} /></button>
                 </div>
               )}
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                placeholder={agentMode ? "Describe a task for the AI agent..." : "Ask anything, build a website, search the web…"}
-                rows={1}
-                className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44"
-              />
+              <textarea ref={inputRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
+                placeholder={agentMode ? "Describe a task for the AI agent..." : "Ask anything, generate image/video, build a website…"}
+                rows={1} className="w-full px-4 pt-3.5 pb-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-44" />
               <div className="flex items-center justify-between px-3 pb-3 pt-1">
                 <div className="flex items-center gap-1">
-                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload}
-                    accept=".pdf,.txt,.doc,.docx,.csv,.json" />
+                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.txt,.doc,.docx,.csv,.json" />
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
                     className="p-2 text-[#9E9E9E] hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all">
                     <Paperclip size={15} />
                   </button>
                   <button onClick={() => setAgentMode(!agentMode)}
-                    className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                      agentMode ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100')}>
+                    className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all', agentMode ? 'bg-violet-100 text-violet-700' : 'text-[#9E9E9E] hover:bg-gray-100')}>
                     <Bot size={13} /> Agent
+                  </button>
+                  <button onClick={() => setInput('Generate image of ')}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#9E9E9E] hover:bg-gray-100 transition-all">
+                    <Image size={13} /> Image
+                  </button>
+                  <button onClick={() => setInput('Generate video of ')}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#9E9E9E] hover:bg-gray-100 transition-all">
+                    <Video size={13} /> Video
                   </button>
                 </div>
                 <button onClick={send} disabled={!input.trim() || streaming}
