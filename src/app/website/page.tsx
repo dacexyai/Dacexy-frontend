@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Send, Globe, Code, Eye, Download, Plus, Clock, ExternalLink, Loader2, X, ChevronLeft, RefreshCw, Monitor, Tablet, Smartphone, Copy, Check, Rocket, Lock } from 'lucide-react'
+import { Sparkles, Send, Globe, Code, Eye, Download, Plus, Clock, ExternalLink, Loader2, X, ChevronLeft, Monitor, Tablet, Smartphone, Copy, Check, Rocket, Lock } from 'lucide-react'
 
 const API_URL = "https://dacexy-backend-v7ku.onrender.com/api/v1"
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
@@ -22,7 +22,7 @@ interface Website {
 const SUGGESTIONS = [
   'A modern SaaS landing page with pricing and features',
   'A portfolio website for a freelance designer',
-  'A restaurant website with menu and reservations',
+  'A restaurant website with full menu and reservations',
   'A startup landing page with waitlist signup',
   'An e-commerce product page for a skincare brand',
   'A personal blog with dark theme',
@@ -50,9 +50,8 @@ export default function WebsitePage() {
   const [showDeployModal, setShowDeployModal] = useState(false)
   const [showDomainModal, setShowDomainModal] = useState(false)
   const [customDomain, setCustomDomain] = useState('')
-  const [deployMode, setDeployMode] = useState<'free' | 'custom'>('free')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const generateRef = useRef<(() => void) | null>(null)
+  const generateRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
     if (!getToken()) { router.replace('/login'); return }
@@ -61,7 +60,7 @@ export default function WebsitePage() {
     if (savedPrompt) {
       setPrompt(savedPrompt)
       localStorage.removeItem('website_prompt')
-      setTimeout(() => { if (generateRef.current) generateRef.current() }, 300)
+      setTimeout(() => { generateRef.current?.() }, 500)
     }
   }, [])
 
@@ -99,6 +98,7 @@ export default function WebsitePage() {
     setGenerating(true)
     setError('')
     setHtmlCode('')
+    setActiveWebsite(null)
     try {
       const res = await authFetch(`${API_URL}/websites/generate`, {
         method: 'POST',
@@ -117,7 +117,7 @@ export default function WebsitePage() {
       setActiveWebsite(newSite)
       setWebsites(prev => [newSite, ...prev])
       setPrompt('')
-      loadCode(data.id)
+      await loadCode(data.id)
     } catch (err: any) {
       setError(err.message || 'Generation failed. Please try again.')
     } finally { setGenerating(false) }
@@ -129,6 +129,7 @@ export default function WebsitePage() {
     setActiveWebsite({ ...site, preview_url: `${API_URL}/websites/${site.id}/preview` })
     loadCode(site.id)
     setViewMode('preview')
+    setError('')
   }
 
   function downloadHtml() {
@@ -161,9 +162,10 @@ export default function WebsitePage() {
       if (!res.ok) throw new Error(data.detail || 'Deploy failed')
       setDeployedUrl(data.url)
       setActiveWebsite(prev => prev ? { ...prev, deployed_url: data.url } : prev)
+      setWebsites(prev => prev.map(s => s.id === activeWebsite.id ? { ...s, deployed_url: data.url } : s))
       setShowDeployModal(true)
     } catch (err: any) {
-      setError(err.message || 'Deploy failed')
+      setError(err.message || 'Deploy failed. Please try again.')
     } finally { setDeploying(false) }
   }
 
@@ -177,8 +179,6 @@ export default function WebsitePage() {
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate() }
   }
-
-  const deviceWidth = deviceMode === 'mobile' ? 'w-[390px]' : deviceMode === 'tablet' ? 'w-[768px]' : 'w-full'
 
   return (
     <div className="flex h-screen bg-[#F9F7F2] overflow-hidden">
@@ -220,12 +220,11 @@ export default function WebsitePage() {
               className={cn('w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all border',
                 activeWebsite?.id === site.id ? 'bg-violet-50 border-violet-200' : 'hover:bg-[#F9F7F2] border-transparent hover:border-black/6')}>
               <div className="flex items-center gap-1.5 mb-1">
-                <div className={cn('w-1.5 h-1.5 rounded-full', site.status === 'completed' ? 'bg-emerald-500' : site.status === 'failed' ? 'bg-red-500' : 'bg-amber-400')} />
+                <div className={cn('w-1.5 h-1.5 rounded-full', site.deployed_url ? 'bg-blue-500' : site.status === 'completed' ? 'bg-emerald-500' : site.status === 'failed' ? 'bg-red-500' : 'bg-amber-400')} />
                 <span className={cn('text-[9px] font-bold uppercase tracking-wider',
-                  site.status === 'completed' ? 'text-emerald-600' : site.status === 'failed' ? 'text-red-500' : 'text-amber-500')}>
+                  site.deployed_url ? 'text-blue-600' : site.status === 'completed' ? 'text-emerald-600' : site.status === 'failed' ? 'text-red-500' : 'text-amber-500')}>
                   {site.deployed_url ? 'live' : site.status}
                 </span>
-                {site.deployed_url && <Globe size={9} className="text-emerald-500 ml-auto" />}
               </div>
               <p className="text-xs text-[#0F0F0F] leading-relaxed line-clamp-2 font-medium">{site.prompt}</p>
               <p className="text-[10px] text-[#C0C0C0] mt-1.5 flex items-center gap-1">
@@ -241,86 +240,110 @@ export default function WebsitePage() {
         {activeWebsite ? (
           <>
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-3 h-12 border-b border-black/6 bg-white shrink-0">
-              <div className="flex items-center gap-2">
-                <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-[#F2EFE8] rounded-lg transition-colors">
+            <div className="flex items-center justify-between px-3 h-12 border-b border-black/6 bg-white shrink-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-[#F2EFE8] rounded-lg transition-colors shrink-0">
                   <ChevronLeft size={15} className={cn('text-[#5C5C5C] transition-transform', !sidebarOpen && 'rotate-180')} />
                 </button>
-                <div className="w-px h-4 bg-black/8" />
-                <p className="text-xs text-[#5C5C5C] truncate max-w-[180px] font-medium">{activeWebsite.prompt}</p>
+                <div className="w-px h-4 bg-black/8 shrink-0" />
+                <p className="text-xs text-[#5C5C5C] truncate font-medium">{activeWebsite.prompt}</p>
                 {activeWebsite.deployed_url && (
                   <a href={activeWebsite.deployed_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
                   </a>
                 )}
               </div>
 
-              <div className="flex items-center gap-1 bg-[#F2EFE8] rounded-lg p-0.5">
-                <button onClick={() => setViewMode('preview')}
-                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-                    viewMode === 'preview' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
-                  <Eye size={12} /> Preview
-                </button>
-                <button onClick={() => setViewMode('code')}
-                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-                    viewMode === 'code' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
-                  <Code size={12} /> Code
-                </button>
-              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {/* View toggle */}
+                <div className="flex items-center gap-0.5 bg-[#F2EFE8] rounded-lg p-0.5 mr-1">
+                  <button onClick={() => setViewMode('preview')}
+                    className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all',
+                      viewMode === 'preview' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
+                    <Eye size={11} /> Preview
+                  </button>
+                  <button onClick={() => setViewMode('code')}
+                    className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all',
+                      viewMode === 'code' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
+                    <Code size={11} /> Code
+                  </button>
+                </div>
 
-              <div className="flex items-center gap-1.5">
+                {/* Device switcher */}
                 {viewMode === 'preview' && (
                   <div className="flex items-center gap-0.5 bg-[#F2EFE8] rounded-lg p-0.5 mr-1">
                     {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map(d => (
                       <button key={d} onClick={() => setDeviceMode(d)}
                         className={cn('p-1.5 rounded-md transition-all', deviceMode === d ? 'bg-white shadow-sm text-violet-700' : 'text-[#9E9E9E]')}>
-                        {d === 'desktop' ? <Monitor size={13} /> : d === 'tablet' ? <Tablet size={13} /> : <Smartphone size={13} />}
+                        {d === 'desktop' ? <Monitor size={12} /> : d === 'tablet' ? <Tablet size={12} /> : <Smartphone size={12} />}
                       </button>
                     ))}
                   </div>
                 )}
+
                 {viewMode === 'code' && (
                   <button onClick={copyCode}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all">
-                    {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all">
+                    {copied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 )}
+
                 <button onClick={downloadHtml} disabled={!htmlCode}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all disabled:opacity-40">
-                  <Download size={12} /> Download
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all disabled:opacity-40">
+                  <Download size={11} /> Download
                 </button>
+
+                {/* Custom domain button */}
                 <button onClick={() => setShowDomainModal(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-semibold rounded-lg transition-all">
-                  <Lock size={12} /> Custom Domain
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-semibold rounded-lg transition-all">
+                  <Lock size={11} /> ₹200 Domain
                 </button>
+
+                {/* Deploy button — always visible */}
                 <button onClick={deployFree} disabled={deploying}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-all">
-                  {deploying ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />}
-                  {deploying ? 'Deploying…' : 'Deploy Free'}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-all">
+                  {deploying ? <Loader2 size={11} className="animate-spin" /> : <Rocket size={11} />}
+                  {deploying ? 'Deploying…' : activeWebsite.deployed_url ? 'Redeploy' : 'Deploy Free'}
                 </button>
+
                 <a href={activeWebsite.preview_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-700 hover:bg-violet-800 text-white text-xs font-semibold rounded-lg transition-all">
-                  <ExternalLink size={12} /> Open
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-700 hover:bg-violet-800 text-white text-xs font-semibold rounded-lg transition-all">
+                  <ExternalLink size={11} /> Open
                 </a>
               </div>
             </div>
 
-            {/* Preview/Code */}
+            {/* Error bar */}
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border-b border-red-200 px-4 py-2">
+                <X size={12} className="text-red-500 shrink-0" />
+                <p className="text-xs text-red-600 flex-1">{error}</p>
+                <button onClick={() => setError('')}><X size={11} className="text-red-400" /></button>
+              </div>
+            )}
+
+            {/* Preview/Code area */}
             <div className="flex-1 overflow-hidden bg-[#F2EFE8]">
               {viewMode === 'preview' ? (
                 <div className={cn('h-full flex items-start justify-center', deviceMode !== 'desktop' && 'pt-4')}>
                   <div className={cn('h-full bg-white transition-all duration-300 overflow-hidden',
-                    deviceMode === 'desktop' ? 'w-full' : deviceWidth + ' rounded-t-2xl shadow-2xl border border-black/8')}>
+                    deviceMode === 'desktop' ? 'w-full' :
+                    deviceMode === 'tablet' ? 'w-[768px] rounded-t-2xl shadow-2xl border border-black/8' :
+                    'w-[390px] rounded-t-2xl shadow-2xl border border-black/8')}>
                     {loadingCode ? (
                       <div className="flex flex-col items-center justify-center h-full gap-3">
                         <Loader2 size={24} className="animate-spin text-violet-600" />
                         <p className="text-sm text-[#9E9E9E]">Loading preview…</p>
                       </div>
                     ) : (
-                      <iframe src={activeWebsite.preview_url} className="w-full h-full border-0" title="Preview"
-                        sandbox="allow-scripts allow-same-origin allow-forms" />
+                      <iframe
+                        src={activeWebsite.preview_url}
+                        className="w-full h-full border-0"
+                        title="Website Preview"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                      />
                     )}
                   </div>
                 </div>
@@ -350,18 +373,11 @@ export default function WebsitePage() {
               )}
             </div>
 
-            {/* Bottom bar */}
+            {/* Bottom iteration bar */}
             <div className="border-t border-black/6 bg-white p-3">
-              {error && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">
-                  <X size={12} className="text-red-500 shrink-0" />
-                  <p className="text-xs text-red-600 flex-1">{error}</p>
-                  <button onClick={() => setError('')}><X size={11} className="text-red-400" /></button>
-                </div>
-              )}
               <div className="flex items-end gap-2 bg-[#F2EFE8] border border-black/8 focus-within:border-violet-400 focus-within:bg-white rounded-2xl px-4 py-3 transition-all">
                 <textarea value={prompt} onChange={handleInput} onKeyDown={handleKeyDown}
-                  placeholder="Describe changes… e.g. add a contact form, change colors to blue"
+                  placeholder="Describe changes… e.g. add a contact form, change colors to blue, add pricing section"
                   rows={1} className="flex-1 bg-transparent text-sm text-[#0F0F0F] placeholder-[#B0B0B0] resize-none outline-none leading-relaxed max-h-32" />
                 <button onClick={generate} disabled={!prompt.trim() || generating}
                   className="w-8 h-8 bg-violet-700 hover:bg-violet-800 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-all shrink-0">
@@ -396,7 +412,8 @@ export default function WebsitePage() {
                 {error && (
                   <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
                     <X size={13} className="text-red-500 shrink-0" />
-                    <p className="text-xs text-red-600">{error}</p>
+                    <p className="text-xs text-red-600 flex-1">{error}</p>
+                    <button onClick={() => setError('')}><X size={11} className="text-red-400" /></button>
                   </div>
                 )}
 
@@ -407,7 +424,7 @@ export default function WebsitePage() {
                       <Sparkles size={16} className="text-violet-600 absolute inset-0 m-auto" />
                     </div>
                     <p className="text-sm font-semibold text-violet-700 mb-1">Building your website…</p>
-                    <p className="text-xs text-violet-400">This takes 30–60 seconds. Hang tight!</p>
+                    <p className="text-xs text-violet-400">This takes 30–60 seconds</p>
                     <div className="mt-3 flex justify-center gap-1">
                       {[0,1,2,3,4].map(i => (
                         <div key={i} className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce"
@@ -419,7 +436,7 @@ export default function WebsitePage() {
 
                 <div className="bg-white border border-black/8 rounded-2xl shadow-sm overflow-hidden mb-5 focus-within:border-violet-300 focus-within:shadow-md transition-all">
                   <textarea ref={textareaRef} value={prompt} onChange={handleInput} onKeyDown={handleKeyDown}
-                    placeholder="Describe your website… e.g. A restaurant named Boi Boi with full menu, pricing, gallery, and contact"
+                    placeholder="Describe your website… e.g. A restaurant named Boi Boi with full menu, pricing, gallery, and contact form"
                     rows={4} className="w-full px-5 py-4 text-sm text-[#0F0F0F] placeholder-[#C0C0C0] resize-none outline-none leading-relaxed" />
                   <div className="flex items-center justify-between px-4 py-3 border-t border-black/6 bg-[#FAFAF9]">
                     <p className="text-[10px] text-[#C0C0C0]">↵ Enter to generate · Shift+Enter for new line</p>
@@ -456,19 +473,17 @@ export default function WebsitePage() {
               <Check size={22} className="text-emerald-600" />
             </div>
             <h3 className="font-serif text-lg font-semibold text-center text-[#0F0F0F] mb-1">Website is Live! 🎉</h3>
-            <p className="text-xs text-[#9E9E9E] text-center mb-4">Your website is deployed and accessible at:</p>
+            <p className="text-xs text-[#9E9E9E] text-center mb-4">Your website is live at:</p>
             <a href={deployedUrl} target="_blank" rel="noopener noreferrer"
               className="block text-xs text-violet-600 font-semibold text-center bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 mb-3 break-all hover:bg-violet-100 transition-all">
               {deployedUrl}
             </a>
-            <button onClick={() => { navigator.clipboard.writeText(deployedUrl) }}
+            <button onClick={() => navigator.clipboard.writeText(deployedUrl)}
               className="w-full flex items-center justify-center gap-2 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold py-2.5 rounded-xl transition-all mb-2">
               <Copy size={12} /> Copy Link
             </button>
             <button onClick={() => setShowDeployModal(false)}
-              className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">
-              Close
-            </button>
+              className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">Close</button>
           </div>
         </div>
       )}
@@ -481,43 +496,35 @@ export default function WebsitePage() {
               <Lock size={22} className="text-amber-600" />
             </div>
             <h3 className="font-serif text-lg font-semibold text-center text-[#0F0F0F] mb-1">Custom Domain</h3>
-            <p className="text-xs text-[#9E9E9E] text-center mb-5">Connect your own domain like <span className="font-semibold text-[#5C5C5C]">yourbrand.com</span> or <span className="font-semibold text-[#5C5C5C]">yourbrand.in</span></p>
-
+            <p className="text-xs text-[#9E9E9E] text-center mb-4">
+              Connect <span className="font-semibold text-[#5C5C5C]">yourbrand.com</span> or <span className="font-semibold text-[#5C5C5C]">yourbrand.in</span>
+            </p>
             <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-violet-700">Custom Domain Setup</span>
                 <span className="text-xs font-extrabold text-violet-700 bg-violet-200 px-2 py-0.5 rounded-full">₹200 / year</span>
               </div>
               <ul className="space-y-1.5">
-                {['Connect .com, .in, .co domains', 'SSL certificate included', 'Instant DNS setup', '1-year hosting included', 'Priority support'].map(f => (
+                {['Connect .com, .in, .co, .org domains', 'Free SSL certificate', 'Instant DNS setup', '1-year hosting included', 'Priority support'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-xs text-violet-700">
                     <Check size={11} className="text-violet-500 shrink-0" /> {f}
                   </li>
                 ))}
               </ul>
             </div>
-
-            <input
-              value={customDomain}
-              onChange={e => setCustomDomain(e.target.value)}
+            <input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
               placeholder="yourdomain.com"
-              className="w-full bg-[#F2EFE8] border border-black/8 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all mb-3"
-            />
-
-            <button
-              onClick={async () => {
+              className="w-full bg-[#F2EFE8] border border-black/8 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all mb-3" />
+            <button onClick={() => {
                 if (!customDomain.trim()) return
                 setShowDomainModal(false)
-                // Razorpay payment flow for ₹200
-                alert('Razorpay payment flow will be triggered here for ₹200. After payment, domain ' + customDomain + ' will be connected.')
+                alert(`Razorpay payment of ₹200 will be charged. Domain "${customDomain}" will be connected after payment.`)
               }}
               className="w-full flex items-center justify-center gap-2 bg-violet-700 hover:bg-violet-800 text-white text-sm font-semibold py-3 rounded-xl transition-all mb-2">
               <Rocket size={14} /> Pay ₹200 & Connect Domain
             </button>
             <button onClick={() => setShowDomainModal(false)}
-              className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">
-              Cancel
-            </button>
+              className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">Cancel</button>
           </div>
         </div>
       )}
