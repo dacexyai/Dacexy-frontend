@@ -53,7 +53,7 @@ function Message({ msg, streaming }: { msg: Msg; streaming?: boolean }) {
                 <p className="text-sm text-violet-400 mt-0.5">This takes 15–30 seconds</p>
               </div>
             </div>
-          ) : msg.content.startsWith('http') ? (
+          ) : (msg.content.startsWith('http') || msg.content.startsWith('data:')) ? (
             <div className="rounded-2xl overflow-hidden border border-black/8 shadow-sm max-w-lg">
               <img src={msg.content} alt="Generated" className="w-full h-auto" />
               <div className="flex items-center justify-between px-4 py-2.5 bg-[#F9F7F2]">
