@@ -258,52 +258,29 @@ export default function ChatPage() {
       return
     }
 
-    // Image generation
-    const imageKw = ['create image', 'generate image', 'make image', 'draw ', 'create a picture', 'generate a picture', 'make a picture', 'create photo', 'generate photo', 'make photo']
-    if (imageKw.some(w => msg.toLowerCase().includes(w))) {
-      setInput('')
-      setStreaming(true)
-      const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg, type: 'text' }
-      const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', type: 'image', loading: true }
-      setMessages(prev => [...prev, userMsg, aiMsg])
-      try {
-        const res = await authFetch(`${API_URL}/media/image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: msg })
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || 'Image generation failed')
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.url, loading: false } : m))
-      } catch (err: any) {
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: err.message || 'Failed', loading: false, type: 'text' } : m))
-      } finally { setStreaming(false) }
-      return
-    }
+    // Image generation - expanded keywords
+const imageKw = [
+  'create image', 'generate image', 'make image', 'draw ',
+  'create a picture', 'generate a picture', 'make a picture',
+  'create photo', 'generate photo', 'make photo',
+  'create an image', 'generate an image', 'make an image',
+  'show image', 'create illustration', 'generate illustration',
+  'create art', 'generate art', 'make art', 'create a image',
+  'generate a image', 'image of', 'picture of', 'photo of'
+]
 
-    // Video generation
-    const videoKw = ['create video', 'generate video', 'make video', 'create a video', 'generate a video', 'make a video']
-    if (videoKw.some(w => msg.toLowerCase().includes(w))) {
-      setInput('')
-      setStreaming(true)
-      const userMsg: Msg = { id: Date.now().toString(), role: 'user', content: msg, type: 'text' }
-      const aiMsg: Msg = { id: (Date.now() + 1).toString(), role: 'assistant', content: '', type: 'video', loading: true }
-      setMessages(prev => [...prev, userMsg, aiMsg])
-      try {
-        const res = await authFetch(`${API_URL}/media/video`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: msg })
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.detail || 'Video generation failed')
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: data.url, loading: false } : m))
-      } catch (err: any) {
-        setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: err.message || 'Failed', loading: false, type: 'text' } : m))
-      } finally { setStreaming(false) }
-      return
-    }
+// Video generation - expanded keywords  
+const videoKw = [
+  'create video', 'generate video', 'make video',
+  'create a video', 'generate a video', 'make a video',
+  'create an animation', 'generate animation', 'make animation',
+  'create a clip', 'generate a clip', 'video of', 'animate'
+]
 
+const msgLower = msg.toLowerCase()
+const isImage = imageKw.some(w => msgLower.includes(w))
+const isVideo = videoKw.some(w => msgLower.includes(w))
+    
     // Normal chat
     setInput('')
     setUploadedFile(null)
