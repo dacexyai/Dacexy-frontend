@@ -241,20 +241,6 @@ export default function ChatPage() {
     }
   }
 
-  async function loadSession(id: string) {
-    setActiveId(id)
-    setSidebarOpen(false)
-    try {
-      const r = await authFetch(`${API_URL}/ai/sessions/${id}/messages`)
-      if (!r.ok) return
-      const data = await r.json()
-      const msgs: Msg[] = (data.messages || [])
-        .map((m: any, i: number) => ({ id: String(i), role: m.role, content: m.content, type: 'text' as const }))
-        .filter((m: Msg) => m.role !== 'system')
-      setMessages(msgs)
-    } catch {}
-  }
-
   function newSession() { setActiveId(null); setMessages([]); setSidebarOpen(false) }
 
   const send = useCallback(async () => {
