@@ -141,8 +141,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  async function loadSessions() {
+async function loadSessions() {
     try {
       const r = await authFetch(`${API_URL}/ai/sessions`)
       if (!r.ok) return
@@ -165,6 +164,7 @@ export default function ChatPage() {
       localStorage.removeItem('template_prompt')
     }
   }, [])
+  
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   useEffect(() => { if (memoryOpen) loadMemories() }, [memoryOpen])
