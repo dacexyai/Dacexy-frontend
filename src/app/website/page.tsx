@@ -490,80 +490,67 @@ export default function WebsitePage() {
 
       {/* Custom domain modal */}
       {showDomainModal && (
-  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-      <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-        <Rocket size={22} className="text-violet-600" />
-      </div>
-      <h3 className="font-serif text-lg font-semibold text-center text-[#0F0F0F] mb-1">
-        Deploy with Dacexy Domain
-      </h3>
-      <p className="text-xs text-[#9E9E9E] text-center mb-5">
-        Get a professional subdomain like{' '}
-        <span className="font-semibold text-violet-600">yourbrand.dacexy.in</span>
-      </p>
-
-      <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-violet-700">Dacexy Pro Plan</span>
-          <span className="text-xs font-extrabold text-violet-700 bg-violet-200 px-2 py-0.5 rounded-full">₹499 / month</span>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Rocket size={22} className="text-violet-600" />
+            </div>
+            <h3 className="font-serif text-lg font-semibold text-center text-[#0F0F0F] mb-1">
+              Deploy with Dacexy Domain
+            </h3>
+            <p className="text-xs text-[#9E9E9E] text-center mb-5">
+              Get a professional subdomain like{' '}
+              <span className="font-semibold text-violet-600">yourbrand.dacexy.in</span>
+            </p>
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-violet-700">Dacexy Pro Plan</span>
+                <span className="text-xs font-extrabold text-violet-700 bg-violet-200 px-2 py-0.5 rounded-full">₹499 / month</span>
+              </div>
+              <ul className="space-y-1.5">
+                {['yourbrand.dacexy.in subdomain', 'Free SSL certificate', 'Unlimited deployments', 'All Dacexy AI features included', 'Priority support'].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-violet-700">
+                    <Check size={11} className="text-violet-500 shrink-0" /> {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="mb-3">
+              <input
+                value={customDomain}
+                onChange={e => setCustomDomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                placeholder="yourbrand"
+                className="w-full bg-[#F2EFE8] border border-black/8 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all"
+              />
+              {customDomain ? (
+                <p className="text-xs text-violet-600 font-semibold mt-1.5 pl-1">→ {customDomain}.dacexy.in</p>
+              ) : (
+                <p className="text-xs text-[#C0C0C0] mt-1.5 pl-1">Enter your brand name above</p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (!customDomain.trim()) return
+                setShowDomainModal(false)
+                alert(`Subscribe to Dacexy Pro (₹499/month) to deploy at ${customDomain}.dacexy.in\n\nRazorpay payment will be integrated here.`)
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-violet-700 hover:bg-violet-800 text-white text-sm font-semibold py-3 rounded-xl transition-all mb-2">
+              <Rocket size={14} /> Subscribe ₹499/mo & Deploy
+            </button>
+            <div className="bg-[#F9F7F2] rounded-xl p-3 mb-3">
+              <p className="text-xs text-[#5C5C5C] font-semibold mb-1">Free deployment</p>
+              <p className="text-xs text-[#9E9E9E]">
+                Click "Deploy Free" to get a free URL like{' '}
+                <span className="font-mono text-[10px] bg-white border border-black/6 px-1.5 py-0.5 rounded">dacexy-abc123.vercel.app</span>
+              </p>
+            </div>
+            <button onClick={() => setShowDomainModal(false)}
+              className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">
+              Cancel
+            </button>
+          </div>
         </div>
-        <ul className="space-y-1.5">
-          {[
-            'yourbrand.dacexy.in subdomain',
-            'Free SSL certificate',
-            'Unlimited deployments',
-            'All Dacexy AI features included',
-            'Priority support',
-          ].map(f => (
-            <li key={f} className="flex items-center gap-2 text-xs text-violet-700">
-              <Check size={11} className="text-violet-500 shrink-0" /> {f}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="mb-3">
-        <input
-          value={customDomain}
-          onChange={e => setCustomDomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-          placeholder="yourbrand"
-          className="w-full bg-[#F2EFE8] border border-black/8 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-400 transition-all"
-        />
-        {customDomain && (
-          <p className="text-xs text-violet-600 font-semibold mt-1.5 pl-1">
-            → {customDomain}.dacexy.in
-          </p>
-        )}
-        {!customDomain && (
-          <p className="text-xs text-[#C0C0C0] mt-1.5 pl-1">
-            Enter your brand name above
-          </p>
-        )}
-      </div>
-
-      <button
-        onClick={() => {
-          if (!customDomain.trim()) return
-          setShowDomainModal(false)
-          alert(`Subscribe to Dacexy Pro (₹499/month) to deploy at ${customDomain}.dacexy.in\n\nRazorpay payment will be integrated here.`)
-        }}
-        className="w-full flex items-center justify-center gap-2 bg-violet-700 hover:bg-violet-800 text-white text-sm font-semibold py-3 rounded-xl transition-all mb-2">
-        <Rocket size={14} /> Subscribe ₹499/mo & Deploy
-      </button>
-
-      <div className="bg-[#F9F7F2] rounded-xl p-3 mb-3">
-        <p className="text-xs text-[#5C5C5C] font-semibold mb-1">Free deployment</p>
-        <p className="text-xs text-[#9E9E9E]">
-          Click "Deploy Free" to get a free URL like{' '}
-          <span className="font-mono text-[10px] bg-white border border-black/6 px-1.5 py-0.5 rounded">dacexy-abc123.vercel.app</span>
-        </p>
-      </div>
-
-      <button onClick={() => setShowDomainModal(false)}
-        className="w-full text-xs text-[#B0B0B0] hover:text-[#5C5C5C] py-2 transition-colors">
-        Cancel
-      </button>
+      )}
     </div>
-  </div>
-)}
+  )
+}
