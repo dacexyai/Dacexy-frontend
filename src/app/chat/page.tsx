@@ -176,7 +176,7 @@ export default function ChatPage() {
     return res
   }
 
-  async function loadSessions(id: string) {
+  async function loadSession(id: string) {
   setActiveId(id)
   setSidebarOpen(false)
   try {
