@@ -149,7 +149,7 @@ export default function ChatPage() {
       router.replace('/login')
       return
     }
-    loadSessions()
+    loadSession_list()
     const templatePrompt = localStorage.getItem('template_prompt')
     if (templatePrompt) {
       setInput(templatePrompt)
