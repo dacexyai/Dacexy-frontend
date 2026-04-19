@@ -149,7 +149,15 @@ export default function ChatPage() {
       router.replace('/login')
       return
     }
-    loadSession_list()
+    loadSessions()
+    async function loadSessions() {
+  try {
+    const r = await authFetch(`${API_URL}/ai/sessions`)
+    if (!r.ok) return
+    const data = await r.json()
+    setSessions(Array.isArray(data) ? data : data.sessions || [])
+  } catch {} finally { setLoadingSessions(false) }
+    }
     const templatePrompt = localStorage.getItem('template_prompt')
     if (templatePrompt) {
       setInput(templatePrompt)
@@ -183,22 +191,19 @@ export default function ChatPage() {
     const r = await authFetch(`${API_URL}/ai/sessions/${id}/messages`)
     if (!r.ok) return
     const data = await r.json()
-    // Handle both array and object response formats
-    const rawMessages = Array.isArray(data) ? data : 
-                       Array.isArray(data.messages) ? data.messages : 
-                       []
+    const rawMessages = Array.isArray(data) ? data :
+                       Array.isArray(data.messages) ? data.messages : []
     const msgs: Msg[] = rawMessages
       .filter((m: any) => m.role !== 'system' && m.content)
-      .map((m: any, i: number) => ({ 
-        id: String(i), 
-        role: m.role, 
+      .map((m: any, i: number) => ({
+        id: String(i),
+        role: m.role,
         content: m.content,
         type: 'text' as const
       }))
     setMessages(msgs)
   } catch {}
   }
-
   async function loadMemories() {
     setLoadingMemories(true)
     try {
