@@ -142,6 +142,15 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  async function loadSessions() {
+    try {
+      const r = await authFetch(`${API_URL}/ai/sessions`)
+      if (!r.ok) return
+      const data = await r.json()
+      setSessions(Array.isArray(data) ? data : data.sessions || [])
+    } catch {} finally { setLoadingSessions(false) }
+  }
+
   useEffect(() => {
     const token = getToken()
     if (!token) {
@@ -150,14 +159,6 @@ export default function ChatPage() {
       return
     }
     loadSessions()
-    async function loadSessions() {
-  try {
-    const r = await authFetch(`${API_URL}/ai/sessions`)
-    if (!r.ok) return
-    const data = await r.json()
-    setSessions(Array.isArray(data) ? data : data.sessions || [])
-  } catch {} finally { setLoadingSessions(false) }
-    }
     const templatePrompt = localStorage.getItem('template_prompt')
     if (templatePrompt) {
       setInput(templatePrompt)
