@@ -240,20 +240,63 @@ export default function WebsitePage() {
         {activeWebsite ? (
           <>
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-3 h-12 border-b border-black/6 bg-white shrink-0 gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-[#F2EFE8] rounded-lg transition-colors shrink-0">
-                  <ChevronLeft size={15} className={cn('text-[#5C5C5C] transition-transform', !sidebarOpen && 'rotate-180')} />
-                </button>
-                <div className="w-px h-4 bg-black/8 shrink-0" />
-                <p className="text-xs text-[#5C5C5C] truncate font-medium">{activeWebsite.prompt}</p>
-                {activeWebsite.deployed_url && (
-                  <a href={activeWebsite.deployed_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
-                  </a>
-                )}
-              </div>
+<div className="flex items-center px-3 h-12 border-b border-black/6 bg-white shrink-0 gap-2">
+  {/* Left */}
+  <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-[#F2EFE8] rounded-lg transition-colors shrink-0">
+    <ChevronLeft size={15} className={cn('text-[#5C5C5C] transition-transform', !sidebarOpen && 'rotate-180')} />
+  </button>
+
+  {/* Deploy buttons — FIRST and prominent */}
+  <button onClick={deployFree} disabled={deploying}
+    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all shrink-0">
+    {deploying ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />}
+    {deploying ? 'Deploying…' : activeWebsite?.deployed_url ? 'Redeploy' : 'Deploy Free'}
+  </button>
+
+  <button onClick={() => setShowDomainModal(true)}
+    className="flex items-center gap-1 px-2.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-all shrink-0">
+    <Lock size={11} /> Pro
+  </button>
+
+  {/* View toggle */}
+  <div className="flex items-center gap-0.5 bg-[#F2EFE8] rounded-lg p-0.5 mx-1">
+    <button onClick={() => setViewMode('preview')}
+      className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all',
+        viewMode === 'preview' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
+      <Eye size={11} /> Preview
+    </button>
+    <button onClick={() => setViewMode('code')}
+      className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all',
+        viewMode === 'code' ? 'bg-white text-violet-700 shadow-sm' : 'text-[#9E9E9E]')}>
+      <Code size={11} /> Code
+    </button>
+  </div>
+
+  {/* Device switcher - hidden on small screens */}
+  {viewMode === 'preview' && (
+    <div className="hidden sm:flex items-center gap-0.5 bg-[#F2EFE8] rounded-lg p-0.5">
+      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map(d => (
+        <button key={d} onClick={() => setDeviceMode(d)}
+          className={cn('p-1.5 rounded-md transition-all', deviceMode === d ? 'bg-white shadow-sm text-violet-700' : 'text-[#9E9E9E]')}>
+          {d === 'desktop' ? <Monitor size={12} /> : d === 'tablet' ? <Tablet size={12} /> : <Smartphone size={12} />}
+        </button>
+      ))}
+    </div>
+  )}
+
+  <div className="flex-1" />
+
+  {/* Secondary actions */}
+  <button onClick={downloadHtml} disabled={!htmlCode}
+    className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all disabled:opacity-40">
+    <Download size={11} /> Download
+  </button>
+  <a href={activeWebsite?.preview_url} target="_blank" rel="noopener noreferrer"
+    className="flex items-center gap-1 px-2.5 py-1.5 bg-[#F2EFE8] hover:bg-[#E8E4DC] text-[#5C5C5C] text-xs font-semibold rounded-lg transition-all">
+    <ExternalLink size={11} /> Open
+  </a>
+</div>
+            
 
               <div className="flex items-center gap-1 shrink-0">
                 {/* View toggle */}
