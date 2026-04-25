@@ -128,7 +128,13 @@ export default function SettingsPage() {
               <p className="text-xs text-[#9E9E9E]">install_windows.bat — double click to install</p>
             </div>
           </a>
-          <a href="https://github.com/dacexyai/Dacexy-backend/raw/main/desktop_agent/install_mac.sh"
+          <a
+  href="https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_windows.bat"
+  download="install_dacexy_agent.bat"
+  className="whatever-class-is-already-there"
+>
+  Download for Windows
+</a>
             download className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all">
             <Download size={15} className="text-[#9E9E9E]" />
             <div>
