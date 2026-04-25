@@ -120,8 +120,11 @@ export default function SettingsPage() {
         {/* Download buttons */}
         <p className="text-xs font-semibold text-[#5C5C5C] uppercase tracking-wide mb-3">Download Installer</p>
         <div className="grid grid-cols-1 gap-2">
-          <a href="https://github.com/dacexyai/Dacexy-backend/raw/main/desktop_agent/install_windows.bat"
-            download className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all">
+          <a
+            href="https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_windows.bat"
+            download="install_dacexy_agent.bat"
+            className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all"
+          >
             <Download size={15} className="text-[#9E9E9E]" />
             <div>
               <p className="text-sm font-semibold text-[#0F0F0F]">Windows</p>
@@ -129,21 +132,21 @@ export default function SettingsPage() {
             </div>
           </a>
           <a
-  href="https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_windows.bat"
-  download="install_dacexy_agent.bat"
-  className="whatever-class-is-already-there"
->
-  Download for Windows
-</a>
-            download className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all">
+            href="https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_mac.sh"
+            download="install_dacexy_agent.sh"
+            className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all"
+          >
             <Download size={15} className="text-[#9E9E9E]" />
             <div>
               <p className="text-sm font-semibold text-[#0F0F0F]">macOS</p>
               <p className="text-xs text-[#9E9E9E]">install_mac.sh — run in terminal</p>
             </div>
           </a>
-          <a href="https://github.com/dacexyai/Dacexy-backend/raw/main/desktop_agent/install_linux.sh"
-            download className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all">
+          <a
+            href="https://raw.githubusercontent.com/dacexyai/Dacexy-backend/main/desktop_agent/install_linux.sh"
+            download="install_dacexy_agent_linux.sh"
+            className="flex items-center gap-3 bg-[#F9F7F2] hover:bg-gray-100 border border-black/8 rounded-xl px-4 py-3 transition-all"
+          >
             <Download size={15} className="text-[#9E9E9E]" />
             <div>
               <p className="text-sm font-semibold text-[#0F0F0F]">Linux</p>
@@ -212,4 +215,4 @@ export default function SettingsPage() {
       </div>
     </div>
   )
-     }
+}
