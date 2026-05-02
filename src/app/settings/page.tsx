@@ -7,12 +7,7 @@ import { Copy, Check, Plus, Monitor, Download, Key, User, Building } from 'lucid
 
 export default function SettingsPage() {
   const { user, org } = useAuthStore()
-  useEffect(() => {
-  orgs.listApiKeys().then(data => {
-    const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
-    setApiKeys(keys)
-  }).catch(() => {})
-}, [])
+  const [apiKeys, setApiKeys] = useState<any[]>([])
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,7 +15,10 @@ export default function SettingsPage() {
   const [agentToken] = useState('dxd_' + Math.random().toString(36).slice(2, 18).toUpperCase())
 
   useEffect(() => {
-    orgs.listApiKeys().then(setApiKeys).catch(() => {})
+    orgs.listApiKeys().then(data => {
+      const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
+      setApiKeys(keys)
+    }).catch(() => {})
   }, [])
 
   async function createKey() {
@@ -30,7 +28,10 @@ export default function SettingsPage() {
       const data = await orgs.createApiKey(newKeyName)
       setNewKey(data.key)
       setNewKeyName('')
-      orgs.listApiKeys().then(setApiKeys).catch(() => {})
+      orgs.listApiKeys().then(data => {
+        const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
+        setApiKeys(keys)
+      }).catch(() => {})
     } catch (err: any) {
       alert(err.message)
     } finally { setLoading(false) }
