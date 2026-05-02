@@ -15,7 +15,7 @@ export default function SettingsPage() {
   const [agentToken] = useState('dxd_' + Math.random().toString(36).slice(2, 18).toUpperCase())
 
   useEffect(() => {
-    orgs.listApiKeys().then(data => {
+    orgs.listApiKeys().then((data: any) => {
       const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
       setApiKeys(keys)
     }).catch(() => {})
@@ -28,7 +28,7 @@ export default function SettingsPage() {
       const data = await orgs.createApiKey(newKeyName)
       setNewKey(data.key)
       setNewKeyName('')
-      orgs.listApiKeys().then(data => {
+      orgs.listApiKeys().then((data: any) => {
         const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
         setApiKeys(keys)
       }).catch(() => {})
