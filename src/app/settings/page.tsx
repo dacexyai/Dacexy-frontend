@@ -7,7 +7,12 @@ import { Copy, Check, Plus, Monitor, Download, Key, User, Building } from 'lucid
 
 export default function SettingsPage() {
   const { user, org } = useAuthStore()
-  const [apiKeys, setApiKeys] = useState<any[]>([])
+  useEffect(() => {
+  orgs.listApiKeys().then(data => {
+    const keys = Array.isArray(data) ? data : (data?.api_keys ?? [])
+    setApiKeys(keys)
+  }).catch(() => {})
+}, [])
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState('')
   const [loading, setLoading] = useState(false)
