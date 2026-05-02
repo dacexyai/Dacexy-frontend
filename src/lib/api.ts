@@ -221,12 +221,25 @@ export const auth = {
 };
 
 export const agent = {
-  list: async () => apiFetch<any[]>("/agent/runs"),
-  run: runAgent,
-  status: getAgentStatus,
-  create: async (goal: string, context?: string) =>
-    apiFetch<any>("/agent/run", { method: "POST", body: JSON.stringify({ task: goal, context }) }),
-};
+  create: (goal: string, context?: string) =>
+    fetchApi('/agent/run', {
+      method: 'POST',
+      body: JSON.stringify({ task: goal, goal, context }),
+    }),
+  list: () => fetchApi('/agent/tasks'),
+  desktopStatus: () => fetchApi('/agent/desktop/status'),
+  sendCommand: (body: Record<string, any>) =>
+    fetchApi('/agent/desktop/command', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  sendTask: (task: string, context?: string) =>
+    fetchApi('/agent/desktop/task', {
+      method: 'POST',
+      body: JSON.stringify({ task, context }),
+    }),
+}
+
 
 export const billing = {
   getPlans,
