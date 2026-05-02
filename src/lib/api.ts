@@ -32,8 +32,6 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   return response.json();
 }
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
@@ -86,8 +84,6 @@ export interface AgentTask {
   context?: string;
 }
 
-// ─── Raw functions ────────────────────────────────────────────────────────────
-
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const formData = new URLSearchParams();
   formData.append("username", email);
@@ -117,12 +113,12 @@ export async function register(email: string, password: string, full_name: strin
     body: JSON.stringify({ email, password, full_name }),
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: "Login failed" }));
-const detail = error.detail
-const msg = Array.isArray(detail)
-  ? detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
-  : typeof detail === 'string' ? detail : 'Login failed'
-throw new Error(msg)
+    const error = await res.json().catch(() => ({ detail: "Registration failed" }));
+    const detail = error.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+      : typeof detail === 'string' ? detail : 'Registration failed';
+    throw new Error(msg);
   }
   const data: RegisterResponse = await res.json();
   if (data.access_token) setToken(data.access_token);
@@ -205,8 +201,6 @@ export async function updateSettings(settings: any): Promise<any> {
   return apiFetch<any>("/settings", { method: "PUT", body: JSON.stringify(settings) });
 }
 
-// ─── Grouped exports (used by pages) ─────────────────────────────────────────
-
 export const auth = {
   login,
   register: async (payload: { full_name: string; email: string; password: string }): Promise<RegisterResponse> =>
@@ -222,24 +216,23 @@ export const auth = {
 
 export const agent = {
   create: (goal: string, context?: string) =>
-    fetchApi('/agent/run', {
+    apiFetch<any>('/agent/run', {
       method: 'POST',
       body: JSON.stringify({ task: goal, goal, context }),
     }),
-  list: () => fetchApi('/agent/tasks'),
-  desktopStatus: () => fetchApi('/agent/desktop/status'),
+  list: () => apiFetch<any>('/agent/tasks'),
+  desktopStatus: () => apiFetch<any>('/agent/desktop/status'),
   sendCommand: (body: Record<string, any>) =>
-    fetchApi('/agent/desktop/command', {
+    apiFetch<any>('/agent/desktop/command', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   sendTask: (task: string, context?: string) =>
-    fetchApi('/agent/desktop/task', {
+    apiFetch<any>('/agent/desktop/task', {
       method: 'POST',
       body: JSON.stringify({ task, context }),
     }),
-}
-
+};
 
 export const billing = {
   getPlans,
@@ -261,6 +254,7 @@ export const orgs = {
   getUsage: async () => apiFetch<any>("/orgs/usage"),
   getStats: async () => apiFetch<any>("/orgs/stats"),
 };
+
 export default {
   login, register, logout, getMe, getToken, setToken, removeToken,
   sendMessage, streamMessage, getConversations, getConversation,
