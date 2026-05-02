@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Bot, Plus, CheckCircle2, XCircle, Clock, Loader2, Play } from 'lucide-react'
+import { Bot, Plus, CheckCircle2, XCircle, Clock, Loader2, Play, Monitor } from 'lucide-react'
 import { agent } from '@/lib/api'
 import { formatRelative, cn } from '@/lib/utils'
 import type { AgentRun } from '@/types'
@@ -58,6 +58,11 @@ function NewRunModal({ onCreated, onClose }: { onCreated: (r: AgentRun) => void;
   const [context, setContext] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [desktopConnected, setDesktopConnected] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    agent.desktopStatus().then((s: any) => setDesktopConnected(s?.connected ?? false)).catch(() => setDesktopConnected(false))
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -77,7 +82,20 @@ function NewRunModal({ onCreated, onClose }: { onCreated: (r: AgentRun) => void;
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-black/8 shadow-card w-full max-w-lg p-6">
         <h2 className="font-serif text-xl font-semibold text-[#0F0F0F] mb-1">New Agent Run</h2>
-        <p className="text-sm text-[#9E9E9E] mb-6">Describe what you want the agent to accomplish</p>
+        <p className="text-sm text-[#9E9E9E] mb-4">Describe what you want the agent to accomplish</p>
+
+        {desktopConnected !== null && (
+          <div className={cn('flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border mb-4', desktopConnected
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-amber-50 text-amber-700 border-amber-200'
+          )}>
+            <Monitor size={13} />
+            {desktopConnected
+              ? 'Desktop agent connected — will control your computer'
+              : 'Desktop agent not connected — AI will respond only (install agent from Settings to control your PC)'}
+          </div>
+        )}
+
         {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>}
         <form onSubmit={submit} className="space-y-4">
           <div>
@@ -86,7 +104,7 @@ function NewRunModal({ onCreated, onClose }: { onCreated: (r: AgentRun) => void;
               value={goal}
               onChange={e => setGoal(e.target.value)}
               rows={3}
-              placeholder="e.g. Research the top 5 AI companies and summarize their latest products"
+              placeholder="e.g. Open Chrome and search for top AI news today"
               className="w-full px-4 py-3 bg-[#F2EFE8] border border-black/8 rounded-xl text-sm placeholder-[#B0B0B0] focus:outline-none focus:border-violet-500 focus:bg-white resize-none transition-all"
             />
           </div>
@@ -123,7 +141,13 @@ export default function AgentPage() {
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    agent.list().then(r => { setRuns(r as AgentRun[]); setLoading(false) }).catch(() => setLoading(false))
+    agent.list()
+      .then((r: any) => {
+        const arr = Array.isArray(r) ? r : (r?.tasks ?? r?.runs ?? [])
+        setRuns(arr)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [])
 
   return (
@@ -168,4 +192,4 @@ export default function AgentPage() {
       {showModal && <NewRunModal onCreated={(r) => setRuns(prev => [r, ...prev])} onClose={() => setShowModal(false)} />}
     </div>
   )
-       }
+}
